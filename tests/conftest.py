@@ -1,59 +1,52 @@
 import pytest
-from marisqueiras import EmpresaMarisqueira, EmpresaCompradora
 
-
-@pytest.fixture(autouse=True)
-def limpar_registro():
-    import marisqueiras
-    marisqueiras._REGISTRO_PRODUTOS.clear()
-    yield
+from marisqueiras import (
+    EmpresaCompradora,
+    EmpresaMarisqueira,
+    CategoriaProduto,
+)
 
 
 @pytest.fixture
 def marisqueira():
+    """Marisqueira sempre aberta (para status_visual não atrapalhar)."""
     return EmpresaMarisqueira(
-        id_empresa_marisqueira="EM-01",
-        CNPJ="00.000.000/0001-00",
         nome="Marisqueira da Vila",
-        localizacao="Vila Maresia, Raposa-MA",
+        localizacao="Raposa - MA",
+        responsavel="Dona Maria",
+        horario_funcionamento=(0, 24),
     )
 
 
 @pytest.fixture
-def outra_marisqueira():
+def marisqueira_b():
     return EmpresaMarisqueira(
-        id_empresa_marisqueira="EM-02",
-        CNPJ="22.222.222/0001-22",
-        nome="Outra Marisqueira",
-        localizacao="Raposa-MA",
+        nome="Marisqueira B",
+        localizacao="São Luís - MA",
+        responsavel="Sr. Pedro",
+        horario_funcionamento=(0, 24),
     )
 
 
 @pytest.fixture
-def comprador():
+def compradora():
     return EmpresaCompradora(
-        id_empresa_compradora="EC-01",
-        CNPJ="11.111.111/0001-11",
         nome="Restaurante Maré",
-        localizacao="São Luís-MA",
+        localizacao="São Luís - MA",
+        responsavel="Sr. João",
+        horario_funcionamento=(8, 22),
     )
 
 
 @pytest.fixture
-def produto(marisqueira):
+def produto_fresco(marisqueira):
     return marisqueira.cadastrar_produto(
-        id_produto="P-001",
-        nome="Camarão",
-        categoria="fresco",
-        preco=50.0,
-        quantidade_disponivel=100,
+        "Camarão", CategoriaProduto.FRESCO, 40.0, 100
     )
 
 
 @pytest.fixture
-def pedido(comprador):
-    return comprador.realizar_pedido(
-        id_pedido="PED-001",
-        endereco_entrega="Rua A, 123",
-        tempo_entrega="2 dias",
+def produto_congelado(marisqueira):
+    return marisqueira.cadastrar_produto(
+        "Camarão", CategoriaProduto.CONGELADO, 35.0, 80
     )

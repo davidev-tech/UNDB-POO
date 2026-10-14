@@ -1,79 +1,60 @@
 import pytest
-from marisqueiras import Produto
+
+from marisqueiras import CategoriaProduto
 
 
-def test_p15_cadastro_completo_exceto_fotografia(marisqueira):
-    p = marisqueira.cadastrar_produto(
-        id_produto="P-001",
-        nome="Ostra", categoria="fresco",
-        preco=30.0, quantidade_disponivel=25,
-    )
-    assert isinstance(p, Produto)
-    assert p.id_produto == "P-001"
-    assert p.nome == "Ostra"
-    assert p.categoria == "fresco"
-    assert p.fotografia is None
+class TestCadastroProduto:
+    """P15, P16, P18, RN06."""
+
+    def test_p15_foto_opcional(self, marisqueira):
+        p = marisqueira.cadastrar_produto("Camarão", CategoriaProduto.FRESCO, 40.0, 100)
+        assert p.foto is None
+
+    def test_preco_obrigatorio_positivo(self, marisqueira):
+        with pytest.raises(ValueError):
+            marisqueira.cadastrar_produto("Camarão", CategoriaProduto.FRESCO, 0, 100)
+
+    def test_rn06_fresco_congelado_distintos(self, marisqueira):
+        p1 = marisqueira.cadastrar_produto("Camarão", CategoriaProduto.FRESCO, 40.0, 100)
+        p2 = marisqueira.cadastrar_produto("Camarão", CategoriaProduto.CONGELADO, 35.0, 100)
+        assert p1 is not p2
+        assert len(marisqueira.produtos) == 2
+
+    def test_rn06_duplicado_mesma_categoria(self, marisqueira):
+        from marisqueiras import RegraNegocioError
+        marisqueira.cadastrar_produto("Camarão", CategoriaProduto.FRESCO, 40.0, 100)
+        with pytest.raises(RegraNegocioError):
+            marisqueira.cadastrar_produto("Camarão", CategoriaProduto.FRESCO, 42.0, 50)
+
+    def test_cadastro_com_menos_de_25_kg_permitido(self, marisqueira):
+        """RN05 é regra de venda, não de cadastro."""
+        p = marisqueira.cadastrar_produto("Camarão", CategoriaProduto.FRESCO, 40.0, 10)
+        assert p.quantidade_disponivel == 10
+
+    def test_cadastro_com_zero_kg_permitido(self, marisqueira):
+        """RN09 / P20: produto pode ser cadastrado como indisponível."""
+        p = marisqueira.cadastrar_produto("Camarão", CategoriaProduto.FRESCO, 40.0, 0)
+        assert not p.esta_disponivel()
 
 
-def test_p15_campos_obrigatorios_exceto_fotografia(marisqueira):
-    with pytest.raises((TypeError, ValueError)):
-        marisqueira.cadastrar_produto(
-            id_produto="P-002", nome="Ostra", categoria="fresco", preco=30.0,
-        )
-    with pytest.raises((TypeError, ValueError)):
-        marisqueira.cadastrar_produto(
-            id_produto="P-003", nome="Ostra", preco=30.0, quantidade_disponivel=30,
-        )
+class TestAlterarQuantidade:
+    """RN08, RN09, P19, P20."""
 
+    def test_alterar_estoque(self, marisqueira, produto_fresco):
+        marisqueira.alterar_quantidade(produto_fresco, 50)
+        assert produto_fresco.quantidade_disponivel == 50
 
-def test_rn05_minimo_25kg_cadastro(marisqueira):
-    with pytest.raises(ValueError):
-        marisqueira.cadastrar_produto(
-            id_produto="P-004", nome="Ostra", categoria="fresco",
-            preco=30.0, quantidade_disponivel=24,
-        )
+    def test_zerar_estoque_produto_permanece(self, marisqueira, produto_fresco):
+        marisqueira.alterar_quantidade(produto_fresco, 0)
+        assert produto_fresco.quantidade_disponivel == 0
+        assert not produto_fresco.esta_disponivel()
+        assert produto_fresco in marisqueira.produtos
 
+    def test_quantidade_negativa(self, marisqueira, produto_fresco):
+        with pytest.raises(ValueError):
+            marisqueira.alterar_quantidade(produto_fresco, -5)
 
-def test_rn06_fresco_e_congelado_diferentes(marisqueira):
-    f = marisqueira.cadastrar_produto(
-        id_produto="P-101", nome="Camarão", categoria="fresco",
-        preco=50.0, quantidade_disponivel=30,
-    )
-    c = marisqueira.cadastrar_produto(
-        id_produto="P-102", nome="Camarão", categoria="congelado",
-        preco=45.0, quantidade_disponivel=30,
-    )
-    assert f != c
-    assert f.categoria != c.categoria
-
-
-def test_rn08_alterar_quantidade(marisqueira, produto):
-    marisqueira.alterar_quantidade(produto, 80)
-    assert produto.quantidade_disponivel == 80
-
-
-def test_rn08_alterar_quantidade_negativa(marisqueira, produto):
-    with pytest.raises(ValueError):
-        marisqueira.alterar_quantidade(produto, -1)
-
-
-def test_rn09_produto_zerado_permanece(marisqueira, produto):
-    marisqueira.alterar_quantidade(produto, 0)
-    assert produto in marisqueira.produtos
-    assert produto.verificar_disponibilidade() is False
-
-
-def test_verificar_disponibilidade_por_quantidade(produto):
-    assert produto.verificar_disponibilidade(25) is True
-    assert produto.verificar_disponibilidade(100) is True
-    assert produto.verificar_disponibilidade(101) is False
-
-
-def test_atualizar_quantidade_direto_no_produto(produto):
-    produto.atualizar_quantidade(80)
-    assert produto.quantidade_disponivel == 80
-
-
-def test_atualizar_quantidade_negativa(produto):
-    with pytest.raises(ValueError):
-        produto.atualizar_quantidade(-1)
+    def test_produto_de_outra_empresa(self, marisqueira, marisqueira_b, produto_fresco):
+        from marisqueiras import RegraNegocioError
+        with pytest.raises(RegraNegocioError):
+            marisqueira_b.alterar_quantidade(produto_fresco, 50)

@@ -1,245 +1,372 @@
 # Modelagem POO — Marisqueiras da Ilha
 
-Documento de modelagem orientada a objetos do sistema **Marisqueiras da Ilha**, conforme PDF de classes, atributos e restrições da disciplina.
+Documento de modelagem orientada a objetos do sistema **Marisqueiras da Ilha**, alinhado ao PDF de requisitos, critérios e regras de negócio, e à implementação atual (67 testes verdes).
 
 ---
 
 ## 1. Visão geral
 
-O sistema apoia a comercialização direta de mariscos entre **empresas de marisqueiras** (fornecedoras) e **empresas compradoras**, no modelo **B2B**. Não há atendimento a consumidor final.
+O sistema apoia a comercialização direta de mariscos entre **empresas de marisqueiras** (fornecedoras) e **empresas compradoras**, no modelo **B2B** (RN01). Não há atendimento a consumidor final.
 
 Participam diretamente:
 
-- **EmpresaMarisqueira** — cadastra produtos, recebe e analisa pedidos, realiza a entrega.
-- **EmpresaCompradora** — consulta produtos, realiza pedidos, avalia marisqueiras.
+- **EmpresaMarisqueira** — cadastra produtos, recebe e analisa pedidos, realiza a entrega e atualiza o status. Vê apenas os próprios produtos (RN12 / P25).
+- **EmpresaCompradora** — consulta produtos de várias marisqueiras, compara, realiza pedidos e avalia marisqueiras após a compra (RN21).
+
+Ambas herdam de uma classe-base **Empresa**, que concentra identidade e horário de funcionamento.
 
 ---
 
-## 2. Classes, atributos e métodos
+## 2. Estrutura do projeto
 
-### 2.1 EmpresaMarisqueira
+```
+projeto/
+├── marisqueiras/
+│   ├── __init__.py
+│   ├── enums.py                # CategoriaProduto, StatusPedido, StatusEmpresa
+│   ├── excecoes.py             # RegraNegocioError, QuantidadeMinimaError, EstoqueInsuficienteError
+│   ├── empresa.py              # classe-base Empresa
+│   ├── empresa_marisqueira.py  # EmpresaMarisqueira
+│   ├── empresa_compradora.py   # EmpresaCompradora
+│   ├── produto.py              # Produto
+│   ├── item_pedido.py          # ItemPedido
+│   ├── pedido.py               # Pedido
+│   └── avaliacao.py            # Avaliacao
+├── tests/
+│   ├── conftest.py
+│   ├── test_produto.py
+│   ├── test_empresa_marisqueira.py
+│   ├── test_empresa_compradora.py
+│   ├── test_pedido.py
+│   ├── test_avaliacao.py
+│   └── test_fluxo_pedido.py
+├── pytest.ini
+└── MODELAGEM.md
+```
 
-| Atributo | Observação |
-|---|---|
-| `id_empresa_marisqueira` | Identificador |
-| `CNPJ` | Cadastro |
-| `nome` | Nome da empresa |
-| `localizacao` | Critério de consulta |
+---
+
+## 3. Classes, atributos e métodos
+
+### 3.1 Empresa (classe base)
+
+| Atributo | Tipo | Observação |
+|---|---|---|
+| `nome` | str | Nome da empresa |
+| `localizacao` | str | Critério de consulta e ordenação (P21, P22) |
+| `responsavel` | str | Uma pessoa por habitação responde pelo cadastro (P12) |
+| `horario_funcionamento` | (int, int) | Tupla (abertura, fechamento) — usada no indicador visual (P33) |
+
+**Métodos:** `esta_no_horario(hora_atual=None)`.
+
+### 3.2 EmpresaMarisqueira
+
+| Atributo | Tipo | Observação |
+|---|---|---|
+| `produtos` | List[Produto] | Produtos da empresa |
+| `pedidos_recebidos` | List[Pedido] | Histórico de pedidos recebidos |
+| `avaliacoes_recebidas` | List[Avaliacao] | Avaliações que a empresa recebeu |
 
 **Métodos:**
 
 | Método | Responsabilidade |
 |---|---|
-| `cadastrar_produto(id_produto, nome, categoria, preco, quantidade_disponivel, fotografia=None)` | Cria produto (RN05) |
-| `alterar_quantidade(produto, quantidade)` | Altera estoque (RN08) |
-| `receber_pedido(pedido)` | Marca pedido como `recebido` |
-| `aceitar_pedido(pedido)` | Move para `em preparo` |
-| `rejeitar_pedido(pedido)` | Move para `rejeitado` ⚠️ |
-| `solicitar_ajuste(pedido)` | Move para `ajuste solicitado` ⚠️ |
-| `atualizar_status_entrega(pedido, status)` | Move para `em curso` / `finalizado` (RN22) |
+| `cadastrar_produto(nome, categoria, preco, quantidade, foto=None)` | Cria produto (P15, P16, P18, RN06) |
+| `consultar_proprios_produtos()` | Retorna apenas os próprios produtos (RN12 / P25) |
+| `alterar_quantidade(produto, nova_qtd)` | Altera estoque (RN08, RN09) |
+| `receber_pedido(pedido)` | Registra o pedido recebido |
+| `aceitar_pedido(pedido)` | Dá baixa no estoque e coloca em `EM_PREPARO` (RN07, RN08, RN18) |
+| `rejeitar_pedido(pedido)` | Marca como `aceito=False` |
+| `solicitar_ajuste(pedido, mensagem)` | Registra mensagem de ajuste no pedido |
+| `atualizar_status_entrega(pedido, novo_status)` | Move `EM_PREPARO → EM_CURSO → FINALIZADO` (RN22) |
+| `registrar_avaliacao(avaliacao)` | Registra avaliação recebida (RN21) |
+| `media_avaliacoes()` | Média aritmética das avaliações (0.0 se não houver) |
+| `status_visual(hora_atual=None)` | Indicador verde / laranja / vermelho (P33, RN20) |
 
-### 2.2 EmpresaCompradora
+### 3.3 EmpresaCompradora
 
-| Atributo | Observação |
-|---|---|
-| `id_empresa_compradora` | Identificador |
-| `CNPJ` | Cadastro |
-| `nome` | Nome da empresa |
-| `localizacao` | Critério de consulta |
+| Atributo | Tipo | Observação |
+|---|---|---|
+| `pedidos_realizados` | List[Pedido] | Pedidos feitos pela empresa |
+| `avaliacoes_feitas` | List[Avaliacao] | Avaliações emitidas |
 
 **Métodos:**
 
 | Método | Responsabilidade |
 |---|---|
-| `consultar_produtos(nome, categoria, localizacao, empresa, ordenar_por)` | Filtros e ordenação (RN10, RN11) |
-| `comparar_produtos(produtos)` | Comparação (P26) |
-| `realizar_pedido(id_pedido, endereco_entrega, tempo_entrega)` | Cria pedido (RN13) |
-| `avaliar_empresa(id_avaliacao, empresa, nota)` | Cria avaliação (RN21) |
+| `consultar_produtos(produtos, nome=None, categoria=None, localizacao=None, empresa_marisqueira=None, avaliacao_minima=None, ordenar_por=None)` | Filtros e ordenação (RN10, RN11 / P9, P21, P22) |
+| `comparar_produtos(produto_a, produto_b)` | Comparação (RN12 / P26) |
+| `realizar_pedido(empresa_marisqueira, endereco_entrega, tempo_entrega, itens)` | Cria pedido já validado (RN13, RN14, RN15, RN18) |
+| `avaliar_empresa(empresa_marisqueira, nota, comentario=None)` | Cria avaliação pós-compra (RN21, P23, P24) |
 
-### 2.3 Produto
+### 3.4 Produto
 
-| Atributo | Observação |
-|---|---|
-| `id_produto` | Identificador |
-| `nome` | Nome |
-| `categoria` | `fresco` ou `congelado` (RN06) |
-| `preco` | Definido por produto e empresa (RN07) |
-| `quantidade_disponivel` | Em kg — semântica de venda (RN04) |
-| `fotografia` | Opcional (P15) |
+| Atributo | Tipo | Observação |
+|---|---|---|
+| `nome` | str | Nome |
+| `categoria` | CategoriaProduto | `FRESCO` ou `CONGELADO` (RN06) |
+| `preco` | float | Preço por kg (RN04, RN07) |
+| `quantidade_disponivel` | int | Em kg (RN04) |
+| `empresa` | EmpresaMarisqueira | Referência à empresa dona |
+| `foto` | Optional[str] | Único campo opcional (P15) |
 
-**Métodos:** `verificar_disponibilidade(quantidade=None)`, `atualizar_quantidade(quantidade)`.
+**Métodos:** `alterar_quantidade(nova_qtd)`, `verificar_disponibilidade(qtd)`, `esta_disponivel()`.
 
-### 2.4 Pedido
+> **Nota sobre RN05**: o mínimo de 25 kg é regra de **venda**, não de cadastro. Produtos podem ser cadastrados com qualquer quantidade ≥ 0; a validação de 25 kg acontece no `ItemPedido`.
 
-| Atributo | Observação |
-|---|---|
-| `id_pedido` | Identificador |
-| `endereco_entrega` | Endereço |
-| `tempo_entrega` | Tempo estimado |
-| `status_pedido` | Estado atual |
+### 3.5 ItemPedido
 
-**Métodos:** `adicionar_item(produto, quantidade)`, `validar_quantidade(item)`, `verificar_disponibilidade()`.
+| Atributo | Tipo | Observação |
+|---|---|---|
+| `produto` | Produto | Referência ao produto |
+| `quantidade` | int | Em kg |
+| `preco_unitario` | float | Congelado no momento da compra (RN07) |
 
-### 2.5 ItemPedido
+**Métodos:** `validar_quantidade()`, `verificar_disponibilidade()`, `atualizar_quantidade(nova_qtd)`, `subtotal()`.
 
-| Atributo | Observação |
-|---|---|
-| `id_pedido` | FK para Pedido |
-| `id_produto` | FK para Produto |
-| `quantidade` | Em kg |
+### 3.6 Pedido
 
-*(Sem métodos próprios — entidade associativa.)*
+| Atributo | Tipo | Observação |
+|---|---|---|
+| `empresa_compradora` | EmpresaCompradora | Referência ao comprador (RN13) |
+| `empresa_marisqueira` | EmpresaMarisqueira | Referência à fornecedora (RN14) |
+| `endereco_entrega` | str | Obrigatório (RN13) |
+| `tempo_entrega` | str | Obrigatório (RN13) |
+| `itens` | List[ItemPedido] | Um pedido pode ter vários produtos (P28) |
+| `aceito` | Optional[bool] | `None` = pendente, `True` = aceito, `False` = rejeitado |
+| `status` | Optional[StatusPedido] | `EM_PREPARO`, `EM_CURSO` ou `FINALIZADO` |
+| `mensagem_ajuste` | Optional[str] | Registro de solicitação de ajuste |
+| `criado_em` | datetime | Timestamp |
 
-### 2.6 Avaliacao
+**Métodos:** `adicionar_item(produto, quantidade)`, `validar_quantidade()`, `verificar_disponibilidade()`, `calcular_total()`, `atualizar_status_entrega(novo_status)`.
 
-| Atributo | Observação |
-|---|---|
-| `id_avaliacao` | Identificador |
-| `nota` | 1 a 5 estrelas (RN21) |
+### 3.7 Avaliacao
+
+| Atributo | Tipo | Observação |
+|---|---|---|
+| `empresa_compradora` | EmpresaCompradora | Quem avaliou (RN21) |
+| `empresa_marisqueira` | EmpresaMarisqueira | Quem foi avaliada (RN21) |
+| `nota` | int | 1 a 5 (P24) |
+| `comentario` | Optional[str] | Comentário |
+| `data` | datetime | Timestamp |
 
 **Métodos:** `registrar_nota(nota)`.
 
+> **Validação**: o construtor exige que exista um pedido aceito entre as duas empresas. Sem compra, `RegraNegocioError`.
+
 ---
 
-## 3. Relações
+## 4. Enums
+
+```python
+class CategoriaProduto(Enum):
+    FRESCO = "fresco"
+    CONGELADO = "congelado"
+
+class StatusPedido(Enum):
+    EM_PREPARO = "em_preparo"
+    EM_CURSO = "em_curso"
+    FINALIZADO = "finalizado"
+
+class StatusEmpresa(Enum):
+    DISPONIVEL = "verde"
+    ESTOQUE_BAIXO = "laranja"
+    FORA_DO_HORARIO = "vermelho"
+```
+
+---
+
+## 5. Relações
 
 | Origem | Multiplicidade | Destino | Tipo |
 |---|---|---|---|
 | EmpresaMarisqueira | 1 → N | Produto | Associação |
-| EmpresaMarisqueira | 1 → N | Pedido | Associação (prepara/entrega) |
+| EmpresaMarisqueira | 1 → N | Pedido | Associação (analisa / entrega) |
 | EmpresaCompradora | 1 → N | Pedido | Associação (realiza) |
 | EmpresaCompradora | 1 → N | Avaliacao | Associação (emite) |
 | EmpresaMarisqueira | 1 → N | Avaliacao | Associação (recebe) |
 | Pedido | 1 → N | ItemPedido | Composição |
 | Produto | 1 → N | ItemPedido | Associação (referenciado) |
+| Pedido | N → 1 | EmpresaCompradora | Referência |
+| Pedido | N → 1 | EmpresaMarisqueira | Referência |
+| Avaliacao | N → 1 | EmpresaCompradora | Referência |
+| Avaliacao | N → 1 | EmpresaMarisqueira | Referência |
 
 ---
 
-## 4. Restrições (do PDF)
+## 6. Restrições implementadas
 
-| # | Restrição | Método que impõe |
+| # | Restrição | Onde é imposta |
 |---|---|---|
-| R1 | Quantidade mínima de 25 kg por produto | `cadastrar_produto`, `validar_quantidade` |
-| R2 | Quantidade solicitada ≤ disponível | `adicionar_item` |
-| R3 | Um pedido só reúne produtos da mesma marisqueira | `adicionar_item` |
-| R4 | Não existe valor financeiro mínimo | (nenhum) |
-| R5 | Estoque zero → produto permanece como indisponível | `verificar_disponibilidade` |
-| R6 | Forma de pagamento fora do escopo | (nenhum) |
-| R7 | Entrega pela própria marisqueira, sem rastreamento em tempo real | `atualizar_status_entrega` |
+| R1 | Mínimo de 25 kg por produto na **venda** (não no cadastro) | `ItemPedido.validar_quantidade` (RN05, RN15) |
+| R2 | Quantidade solicitada ≤ disponível | `ItemPedido.verificar_disponibilidade` (RN18 / P34) |
+| R3 | Um pedido só reúne produtos da mesma marisqueira | `Pedido.adicionar_item` (RN14 / P29) |
+| R4 | Sem valor financeiro mínimo | (nenhuma validação de R$ mínimo) (RN16 / P31) |
+| R5 | Estoque zero → produto permanece cadastrado como indisponível | `Produto.esta_disponivel` (RN09 / P20) |
+| R6 | Forma de pagamento fora do escopo | (nenhum atributo) (P27) |
+| R7 | Entrega pela própria marisqueira, sem rastreamento em tempo real | `EmpresaMarisqueira.atualizar_status_entrega` (RN22) |
+| R8 | Preço fixo durante a venda | `ItemPedido.preco_unitario` (RN07) |
+| R9 | Fresco e congelado são produtos distintos | `EmpresaMarisqueira.cadastrar_produto` (RN06 / P18) |
+| R10 | Avaliação só após compra aceita, escala 1–5 | `Avaliacao.__init__` + `registrar_nota` (RN21 / P23, P24) |
 
 ---
 
-## 5. Estados de `status_pedido`
+## 7. Estados de `Pedido`
+
+O `Pedido` tem **dois atributos independentes**:
+
+**Análise (`aceito`):**
 
 ```
-pendente → recebido → em preparo → em curso → finalizado
-                ↓
-          rejeitado | ajuste solicitado  ⚠️
+None (pendente) ──aceitar_pedido──▶ True  (aceito)
+                └─rejeitar_pedido─▶ False (rejeitado)
 ```
 
-Os estados **`em preparo`, `em curso`, `finalizado`** vêm diretamente do PDF.
-Os estados **`pendente`, `recebido`, `rejeitado`, `ajuste solicitado`** são **decisões de modelagem** ⚠️ para dar suporte aos métodos `receber_pedido`, `rejeitar_pedido` e `solicitar_ajuste`.
+**Entrega (`status`):**
+
+```
+None ──aceitar_pedido──▶ EM_PREPARO ──▶ EM_CURSO ──▶ FINALIZADO
+```
+
+- `solicitar_ajuste` **não muda** nenhum dos dois — apenas grava `mensagem_ajuste`.
+- `atualizar_status_entrega` só é permitido se `aceito is True`.
+- Não é possível voltar estados.
 
 ---
 
-## 6. Decisões de modelagem ⚠️
+## 8. Decisões de modelagem
 
-Pontos que a modelagem simplificada deixou em aberto e que foram resolvidos:
-
-1. **Pedido ↔ EmpresaCompradora** — `Pedido` recebe o comprador como parâmetro no construtor e guarda referência (`self.comprador`). A associação não aparece como atributo na tabela do PDF, mas é necessária para RN13.
-2. **Avaliacao ↔ EmpresaMarisqueira** — `avaliar_empresa` recebe `empresa` como parâmetro e a `Avaliacao` guarda referência. Necessário para RN21.
-3. **Estados extras de `status_pedido`** — descritos na seção 5.
-4. **Registro global de produtos** — para que `EmpresaCompradora` consulte produtos de várias marisqueiras (RN12) sem um repositório explícito, foi usado um dicionário `_REGISTRO_PRODUTOS` no módulo `marisqueiras.py`.
-5. **RN07 (preço não alterável durante venda)** — como não há método de alteração de preço na lista oficial, a RN07 é satisfeita por omissão: não existe caminho no código para alterar preço de um produto que já esteja em um pedido.
-6. **RN04 (venda por kg)** — não há atributo `unidade`; a unidade é semântica implícita da `quantidade_disponivel`.
-7. **RN20 (indicador visual verde/laranja/vermelho)** — fora do escopo desta modelagem. Exigiria atributos como horário de funcionamento ou limite de estoque baixo, que não constam no PDF definitivo.
+1. **`Pedido` guarda referências às duas empresas** — `empresa_compradora` e `empresa_marisqueira` são atributos do construtor, atendendo RN13 e RN14.
+2. **`Avaliacao` guarda referências às duas empresas** — `empresa_compradora` e `empresa_marisqueira`, atendendo RN21 / P23.
+3. **Apenas 3 estados de entrega** — conforme o PDF (`EM_PREPARO`, `EM_CURSO`, `FINALIZADO`). O `aceite` é um booleano à parte, não um estado do enum.
+4. **`realizar_pedido` recebe uma lista de `(produto, quantidade)`** — já valida tudo de uma vez (mesma empresa, mínimo 25 kg por item, estoque), e só então instancia o `Pedido`. Sem isso, um "pedido inválido" poderia ser construído em etapas.
+5. **`consultar_produtos` recebe a lista de produtos por parâmetro** — não existe registro global nem repositório. Quem quiser consultar passa a lista (por exemplo, `marisqueira.consultar_proprios_produtos()` ou a soma de vários).
+6. **RN05 é regra de venda, não de cadastro** — `Produto` aceita qualquer quantidade ≥ 0; o mínimo de 25 kg só é validado em `ItemPedido`.
+7. **RN20 implementada** — `status_visual` retorna verde / laranja / vermelho com base no horário de funcionamento e no estoque.
+8. **RN07 garantida por congelamento do preço** — `ItemPedido.preco_unitario` guarda o preço no momento da compra; alterações posteriores em `Produto.preco` não afetam o item.
+9. **RN23 garantida por omissão** — o custo da entrega está embutido em `Produto.preco`; não há campo de frete separado.
 
 ---
 
-## 7. Rastreabilidade RN → método → teste
+## 9. Rastreabilidade RN → método → teste
 
-| RN | Método | Teste |
+| RN | Método principal | Teste(s) |
 |---|---|---|
-| RN04 | `Produto` (semântica kg) | `test_p15_cadastro_completo_exceto_fotografia` |
-| RN05 | `cadastrar_produto`, `validar_quantidade` | `test_rn05_minimo_25kg_cadastro`, `test_rn15_minimo_25kg_por_item` |
-| RN06 | `cadastrar_produto` | `test_rn06_fresco_e_congelado_diferentes` |
-| RN07 | (por omissão) | `test_rn07_preco_nao_alteravel_durante_venda` |
-| RN08 | `alterar_quantidade`, `atualizar_quantidade` | `test_rn08_alterar_quantidade`, `test_atualizar_quantidade_direto_no_produto` |
-| RN09 | `atualizar_quantidade`, `verificar_disponibilidade` | `test_rn09_produto_zerado_permanece` |
-| RN10 | `consultar_produtos` | `test_rn10_filtro_por_nome`, `test_rn10_filtro_por_categoria`, `test_rn10_filtro_por_localizacao`, `test_rn10_filtro_por_empresa` |
-| RN11 | `consultar_produtos(ordenar_por=...)` | `test_rn11_ordenar_por_menor_e_maior_preco` |
-| RN12 | `consultar_produtos` + `produtos` | `test_p25_marisqueira_ve_apenas_proprios_produtos`, `test_rn12_comprador_ve_multiplas_empresas` |
-| RN13 | `realizar_pedido` | `test_id_pedido_registrado`, `test_pagamento_fora_do_escopo` |
-| RN14 | `adicionar_item` | `test_nao_misturar_marisqueiras`, `test_pedido_varios_produtos_mesma_empresa` |
-| RN15 | `validar_quantidade` | `test_rn15_minimo_25kg_por_item`, `test_validar_quantidade_exata`, `test_validar_quantidade_abaixo` |
-| RN16 | `adicionar_item` | `test_rn16_sem_valor_minimo_financeiro` |
-| RN17 | `adicionar_item` | `test_rn17_sem_quantidade_maxima_fixa` |
-| RN18 | `adicionar_item`, `verificar_disponibilidade` | `test_rn18_bloqueia_acima_do_disponivel`, `test_verificar_disponibilidade_insuficiente` |
-| RN19 | `cadastrar_produto` | `test_rn19_empresa_sem_estoque_permanece_cadastrada` |
-| RN21 | `avaliar_empresa`, `registrar_nota` | testes de avaliação |
-| RN22 | `atualizar_status_entrega` | `test_fluxo_completo`, `test_atualizar_status_entrega_em_curso`, `test_atualizar_status_entrega_finalizado` |
-| RN23 | (por omissão) | `test_sem_custo_de_entrega_separado` |
+| RN01 | herança de `Empresa` | (conceitual) |
+| RN02 | `Empresa.responsavel` | `test_rn02_uma_pessoa_por_habitacao` |
+| RN03 | `EmpresaMarisqueira` autônoma | (conceitual) |
+| RN04 | `Produto.quantidade_disponivel` (kg) | `test_p15_foto_opcional` |
+| RN05 | `ItemPedido.validar_quantidade` | `test_minimo_25_kg`, `test_exatamente_25_kg_ok`, `test_cadastro_com_menos_de_25_kg_permitido` |
+| RN06 | `cadastrar_produto` | `test_rn06_fresco_congelado_distintos`, `test_rn06_duplicado_mesma_categoria` |
+| RN07 | `ItemPedido.preco_unitario` | `test_preco_congelado_na_compra` |
+| RN08 | `alterar_quantidade` | `test_alterar_estoque`, `test_alterar_quantidade_revalida_minimo` |
+| RN09 | `esta_disponivel` / `alterar_quantidade` | `test_zerar_estoque_produto_permanece`, `test_cadastro_com_zero_kg_permitido` |
+| RN10 | `consultar_produtos` | `test_filtro_por_nome`, `test_filtro_por_categoria`, `test_filtro_por_localizacao`, `test_filtro_por_empresa` |
+| RN11 | `consultar_produtos(ordenar_por=...)` | `test_ordenar_menor_preco`, `test_ordenar_maior_preco`, `test_ordenacao_invalida` |
+| RN12 | `consultar_proprios_produtos`, `comparar_produtos` | `test_p25_marisqueira_ve_somente_proprios`, `test_comparar_entre_empresas` |
+| RN13 | `Pedido.__init__` + `realizar_pedido` | `test_dados_obrigatorios`, `test_pedido_sem_itens_bloqueado` |
+| RN14 | `Pedido.adicionar_item` | `test_rn14_produto_de_outra_empresa_bloqueado` |
+| RN15 | `ItemPedido.validar_quantidade` | `test_minimo_25_kg`, `test_rn15_minimo_por_produto` |
+| RN16 | (nenhuma validação) | `test_rn16_sem_minimo_financeiro` |
+| RN17 | limitado só pelo estoque | `test_rn17_sem_maximo_fixo` |
+| RN18 | `verificar_disponibilidade` | `test_estoque_insuficiente`, `test_rn18_p34_quantidade_maior_que_estoque` |
+| RN19 | produto continua na lista | `test_cadastro_com_zero_kg_permitido`, `test_sem_produtos_laranja` |
+| RN20 | `status_visual` | `test_fora_do_horario_vermelho`, `test_disponivel_verde`, `test_estoque_baixo_laranja`, `test_sem_produtos_laranja` |
+| RN21 | `avaliar_empresa` + `Avaliacao.__init__` | `test_avaliar_sem_compra_bloqueado`, `test_avaliar_com_pedido_pendente_bloqueado`, `test_avaliar_com_pedido_rejeitado_bloqueado`, `test_avaliar_apos_compra_aceita` |
+| RN22 | `atualizar_status_entrega` | `test_fluxo_valido`, `test_transicao_invalida`, `test_nao_avanca_apos_finalizado`, `test_sem_aceite_nao_pode_atualizar`, `test_status_invalido` |
+| RN23 | (embutido em `Produto.preco`) | `test_calcular_total` |
 
-RN01, RN02, RN03 e RN20 não têm método correspondente — são restrições organizacionais / de apresentação fora do escopo da modelagem simplificada.
+Perguntas P relevantes: P12 (responsável), P15 (foto opcional), P16 (kg), P18 (fresco ≠ congelado), P19–P20 (estoque), P21–P22 (filtros/ordenação), P23–P24 (avaliação 1–5), P25–P26 (visibilidade/comparação), P27–P32 (pedido), P33 (indicador visual), P34 (bloqueio por indisponibilidade).
 
 ---
 
-## 8. Diagrama de classes (Mermaid)
+## 10. Diagrama de classes (Mermaid)
 
 ```mermaid
 classDiagram
-    class EmpresaMarisqueira {
-        +id_empresa_marisqueira
-        +CNPJ
+    class Empresa {
         +nome
         +localizacao
+        +responsavel
+        +horario_funcionamento
+        +esta_no_horario()
+    }
+
+    class EmpresaMarisqueira {
+        +produtos: List~Produto~
+        +pedidos_recebidos: List~Pedido~
+        +avaliacoes_recebidas: List~Avaliacao~
         +cadastrar_produto()
+        +consultar_proprios_produtos()
         +alterar_quantidade()
         +receber_pedido()
         +aceitar_pedido()
         +rejeitar_pedido()
         +solicitar_ajuste()
         +atualizar_status_entrega()
+        +registrar_avaliacao()
+        +media_avaliacoes()
+        +status_visual()
     }
+
     class EmpresaCompradora {
-        +id_empresa_compradora
-        +CNPJ
-        +nome
-        +localizacao
+        +pedidos_realizados: List~Pedido~
+        +avaliacoes_feitas: List~Avaliacao~
         +consultar_produtos()
         +comparar_produtos()
         +realizar_pedido()
         +avaliar_empresa()
     }
+
     class Produto {
-        +id_produto
         +nome
-        +categoria
+        +categoria: CategoriaProduto
         +preco
         +quantidade_disponivel
-        +fotografia
+        +empresa
+        +foto
+        +alterar_quantidade()
+        +verificar_disponibilidade()
+        +esta_disponivel()
+    }
+
+    class ItemPedido {
+        +produto
+        +quantidade
+        +preco_unitario
+        +validar_quantidade()
         +verificar_disponibilidade()
         +atualizar_quantidade()
+        +subtotal()
     }
+
     class Pedido {
-        +id_pedido
+        +empresa_compradora
+        +empresa_marisqueira
         +endereco_entrega
         +tempo_entrega
-        +status_pedido
+        +itens: List~ItemPedido~
+        +aceito: Optional~bool~
+        +status: Optional~StatusPedido~
+        +mensagem_ajuste
         +adicionar_item()
         +validar_quantidade()
         +verificar_disponibilidade()
+        +calcular_total()
+        +atualizar_status_entrega()
     }
-    class ItemPedido {
-        +id_pedido
-        +id_produto
-        +quantidade
-    }
+
     class Avaliacao {
-        +id_avaliacao
+        +empresa_compradora
+        +empresa_marisqueira
         +nota
+        +comentario
+        +data
         +registrar_nota()
     }
+
+    Empresa <|-- EmpresaMarisqueira
+    Empresa <|-- EmpresaCompradora
 
     EmpresaMarisqueira "1" --> "N" Produto : oferece
     EmpresaMarisqueira "1" --> "N" Pedido : prepara/entrega
@@ -252,7 +379,7 @@ classDiagram
 
 ---
 
-## 9. Glossário de RNs (referência rápida)
+## 11. Glossário de RNs
 
 | RN | Descrição |
 |---|---|
@@ -276,42 +403,41 @@ classDiagram
 | RN18 | Bloqueia quantidade acima do disponível |
 | RN19 | Empresa permanece cadastrada sem estoque |
 | RN20 | Indicador visual (verde/laranja/vermelho) |
-| RN21 | Avaliação 1 a 5 estrelas |
+| RN21 | Avaliação 1 a 5 estrelas após compra |
 | RN22 | Entrega pela marisqueira; sem rastreamento em tempo real |
 | RN23 | Custo da entrega embutido no preço |
 
 ---
 
-## 10. Suíte de testes
+## 12. Suíte de testes
 
-**62 testes · todos verdes.**
+**67 testes · todos verdes.**
 
 Para rodar:
 
 ```bash
 python -m pip install -r requirements.txt
-python -m pytest -v
+python -m pytest tests/ -v
 ```
 
-| Arquivo | Testes |
-|---|---|
-| `tests/test_produto.py` | 10 |
-| `tests/test_empresa_marisqueira.py` | 4 |
-| `tests/test_empresa_compradora.py` | 9 |
-| `tests/test_pedido.py` | 15 |
-| `tests/test_fluxo_pedido.py` | 9 |
-| `tests/test_avaliacao.py` | 15 |
+| Arquivo | Testes | Cobre |
+|---|---|---|
+| `tests/test_produto.py` | 10 | RN05, RN06, RN08, RN09, P15, P16, P18, P19, P20 |
+| `tests/test_empresa_marisqueira.py` | 16 | RN07, RN08, RN20, RN22, P7, P33 |
+| `tests/test_empresa_compradora.py` | 16 | RN10–RN18, P9, P21, P22, P25–P34 |
+| `tests/test_pedido.py` | 12 | RN05, RN07, RN13, RN14, RN15, RN17, RN18, RN22 |
+| `tests/test_avaliacao.py` | 11 | RN21, P23, P24 |
+| `tests/test_fluxo_pedido.py` | 2 | P7 (integração ponta a ponta) |
+| **Total** | **67** | |
 
 ---
 
-## 11. Decisões em aberto (aguardando a docente)
+## 13. Decisões confirmadas
 
-1. **`Pedido` guarda comprador como atributo?** — hoje guarda referência via construtor.
-2. **`Avaliacao` guarda marisqueira como atributo?** — hoje guarda referência via construtor.
-3. **Valores oficiais de `status_pedido` para `rejeitado` e `ajuste solicitado`?** — hoje são decisão de modelagem.
+1. **`Pedido` guarda referências às duas empresas** — confirmado.
+2. **`Avaliacao` guarda referências às duas empresas** — confirmado.
+3. **`aceitar_pedido()` e `rejeitar_pedido()` ficam em `EmpresaMarisqueira`** — confirmado.
+4. **Apenas 3 estados de entrega** — confirmado (`EM_PREPARO`, `EM_CURSO`, `FINALIZADO`). O aceite é um booleano, não um estado.
+5. **`solicitar_ajuste()` existe** — está na lista oficial de métodos do PDF e foi implementado.
 
-Assim que a docente se manifestar, ajustar:
-
-- `marisqueiras.py` (construtor/atributo)
-- testes correspondentes
-- seções 2 e 5 deste documento
+---

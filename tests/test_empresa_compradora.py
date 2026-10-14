@@ -1,96 +1,112 @@
-def test_rn10_filtro_por_nome(comprador, marisqueira, produto):
-    outro = marisqueira.cadastrar_produto(
-        id_produto="P-401", nome="Ostra", categoria="fresco",
-        preco=30.0, quantidade_disponivel=30,
-    )
-    assert produto in comprador.consultar_produtos(nome="Camarão")
-    assert outro not in comprador.consultar_produtos(nome="Camarão")
+import pytest
+
+from marisqueiras import (
+    CategoriaProduto,
+    EstoqueInsuficienteError,
+    QuantidadeMinimaError,
+    RegraNegocioError,
+)
 
 
-def test_rn10_filtro_por_categoria(comprador, marisqueira):
-    marisqueira.cadastrar_produto(
-        id_produto="P-402", nome="Camarão", categoria="fresco",
-        preco=50.0, quantidade_disponivel=30,
-    )
-    marisqueira.cadastrar_produto(
-        id_produto="P-403", nome="Camarão", categoria="congelado",
-        preco=45.0, quantidade_disponivel=30,
-    )
-    assert len(comprador.consultar_produtos(categoria="fresco")) == 1
-    assert len(comprador.consultar_produtos(categoria="congelado")) == 1
+class TestConsulta:
+    """RN10, RN11, P9, P21, P22, P25."""
+
+    def test_p25_marisqueira_ve_somente_proprios(self, marisqueira, marisqueira_b, produto_fresco):
+        marisqueira_b.cadastrar_produto("Camarão", CategoriaProduto.FRESCO, 38.0, 100)
+        assert len(marisqueira.consultar_proprios_produtos()) == 1
+        assert produto_fresco in marisqueira.consultar_proprios_produtos()
+
+    def test_filtro_por_nome(self, compradora, marisqueira, produto_fresco, produto_congelado):
+        r = compradora.consultar_produtos(marisqueira.produtos, nome="camarão")
+        assert len(r) == 2
+
+    def test_filtro_por_categoria(self, compradora, marisqueira, produto_fresco, produto_congelado):
+        r = compradora.consultar_produtos(
+            marisqueira.produtos, categoria=CategoriaProduto.CONGELADO
+        )
+        assert r == [produto_congelado]
+
+    def test_filtro_por_localizacao(self, compradora, marisqueira, produto_fresco):
+        r = compradora.consultar_produtos(
+            marisqueira.produtos, localizacao="Raposa - MA"
+        )
+        assert produto_fresco in r
+
+    def test_filtro_por_empresa(self, compradora, marisqueira, marisqueira_b, produto_fresco):
+        produto_b = marisqueira_b.cadastrar_produto(
+            "Camarão", CategoriaProduto.FRESCO, 38.0, 100
+        )
+        todos = marisqueira.produtos + marisqueira_b.produtos
+        r = compradora.consultar_produtos(todos, empresa_marisqueira=marisqueira_b)
+        assert r == [produto_b]
+
+    def test_ordenar_menor_preco(self, compradora, marisqueira, produto_fresco, produto_congelado):
+        r = compradora.consultar_produtos(marisqueira.produtos, ordenar_por="menor_preco")
+        assert r[0].preco == 35.0
+
+    def test_ordenar_maior_preco(self, compradora, marisqueira, produto_fresco, produto_congelado):
+        r = compradora.consultar_produtos(marisqueira.produtos, ordenar_por="maior_preco")
+        assert r[0].preco == 40.0
+
+    def test_ordenacao_invalida(self, compradora, marisqueira, produto_fresco):
+        with pytest.raises(ValueError):
+            compradora.consultar_produtos(marisqueira.produtos, ordenar_por="aleatorio")
 
 
-def test_rn10_filtro_por_localizacao(comprador, marisqueira, outra_marisqueira):
-    p1 = marisqueira.cadastrar_produto(
-        id_produto="P-404", nome="Camarão", categoria="fresco",
-        preco=50.0, quantidade_disponivel=30,
-    )
-    p2 = outra_marisqueira.cadastrar_produto(
-        id_produto="P-405", nome="Ostra", categoria="fresco",
-        preco=30.0, quantidade_disponivel=30,
-    )
-    resultado = comprador.consultar_produtos(localizacao="Vila Maresia, Raposa-MA")
-    assert p1 in resultado
-    assert p2 not in resultado
+class TestComparacao:
+    """RN12 / P26."""
+
+    def test_comparar_entre_empresas(self, compradora, marisqueira, marisqueira_b, produto_fresco):
+        produto_b = marisqueira_b.cadastrar_produto(
+            "Camarão", CategoriaProduto.FRESCO, 35.0, 80
+        )
+        info = compradora.comparar_produtos(produto_fresco, produto_b)
+        assert info["diferenca_preco"] == 5.0
+        assert info["empresa_a"] == "Marisqueira da Vila"
+        assert info["empresa_b"] == "Marisqueira B"
 
 
-def test_rn10_filtro_por_empresa(comprador, marisqueira, outra_marisqueira):
-    p1 = marisqueira.cadastrar_produto(
-        id_produto="P-406", nome="Camarão", categoria="fresco",
-        preco=50.0, quantidade_disponivel=30,
-    )
-    p2 = outra_marisqueira.cadastrar_produto(
-        id_produto="P-407", nome="Ostra", categoria="fresco",
-        preco=30.0, quantidade_disponivel=30,
-    )
-    assert p1 in comprador.consultar_produtos(empresa=marisqueira)
-    assert p2 not in comprador.consultar_produtos(empresa=marisqueira)
+class TestRealizarPedido:
+    """RN13, RN14, RN15, RN16, RN17, RN18, P27–P34."""
 
+    def test_dados_obrigatorios(self, compradora, marisqueira, produto_fresco):
+        with pytest.raises(ValueError):
+            compradora.realizar_pedido(marisqueira, "", "2 dias", [(produto_fresco, 25)])
+        with pytest.raises(ValueError):
+            compradora.realizar_pedido(marisqueira, "Rua X", "", [(produto_fresco, 25)])
 
-def test_rn11_ordenar_por_menor_e_maior_preco(comprador, marisqueira):
-    marisqueira.cadastrar_produto(
-        id_produto="P-408", nome="Camarão", categoria="fresco",
-        preco=50.0, quantidade_disponivel=30,
-    )
-    marisqueira.cadastrar_produto(
-        id_produto="P-409", nome="Ostra", categoria="fresco",
-        preco=30.0, quantidade_disponivel=30,
-    )
-    menores = comprador.consultar_produtos(ordenar_por="menor_preco")
-    assert menores[0].preco <= menores[1].preco
+    def test_multiplos_produtos_mesma_empresa(self, compradora, marisqueira, produto_fresco, produto_congelado):
+        pedido = compradora.realizar_pedido(
+            marisqueira, "Rua X", "2 dias",
+            [(produto_fresco, 25), (produto_congelado, 30)],
+        )
+        assert len(pedido.itens) == 2
 
-    maiores = comprador.consultar_produtos(ordenar_por="maior_preco")
-    assert maiores[0].preco >= maiores[1].preco
+    def test_rn14_produto_de_outra_empresa_bloqueado(self, compradora, marisqueira, marisqueira_b, produto_fresco):
+        p_outro = marisqueira_b.cadastrar_produto(
+            "Camarão", CategoriaProduto.FRESCO, 38.0, 100
+        )
+        with pytest.raises(RegraNegocioError):
+            compradora.realizar_pedido(
+                marisqueira, "Rua X", "2 dias",
+                [(produto_fresco, 25), (p_outro, 25)],
+            )
 
+    def test_rn15_minimo_por_produto(self, compradora, marisqueira, produto_fresco):
+        with pytest.raises(QuantidadeMinimaError):
+            compradora.realizar_pedido(marisqueira, "Rua X", "2 dias", [(produto_fresco, 24)])
 
-def test_rn12_comprador_ve_multiplas_empresas(comprador, marisqueira, outra_marisqueira):
-    p1 = marisqueira.cadastrar_produto(
-        id_produto="P-410", nome="Camarão", categoria="fresco",
-        preco=50.0, quantidade_disponivel=30,
-    )
-    p2 = outra_marisqueira.cadastrar_produto(
-        id_produto="P-411", nome="Ostra", categoria="fresco",
-        preco=30.0, quantidade_disponivel=30,
-    )
-    assert p1 in comprador.consultar_produtos()
-    assert p2 in comprador.consultar_produtos()
+    def test_rn18_p34_quantidade_maior_que_estoque(self, compradora, marisqueira, produto_fresco):
+        with pytest.raises(EstoqueInsuficienteError):
+            compradora.realizar_pedido(marisqueira, "Rua X", "2 dias", [(produto_fresco, 101)])
 
+    def test_rn16_sem_minimo_financeiro(self, compradora, marisqueira, produto_fresco):
+        pedido = compradora.realizar_pedido(marisqueira, "Rua X", "2 dias", [(produto_fresco, 25)])
+        assert pedido.calcular_total() == 25 * 40.0
 
-def test_comparar_produtos(comprador, marisqueira, outra_marisqueira):
-    p1 = marisqueira.cadastrar_produto(
-        id_produto="P-412", nome="Camarão", categoria="fresco",
-        preco=50.0, quantidade_disponivel=30,
-    )
-    p2 = outra_marisqueira.cadastrar_produto(
-        id_produto="P-413", nome="Ostra", categoria="fresco",
-        preco=30.0, quantidade_disponivel=30,
-    )
-    assert comprador.comparar_produtos([p1, p2]) is not None
-
-
-def test_comparar_lista_vazia(comprador):
-    assert comprador.comparar_produtos([]) in ([], None, {})
-
-
-def test_comparar_um_unico(comprador, produto):
-    assert comprador.comparar_produtos([produto]) is not None
+    def test_rn17_sem_maximo_fixo(self, compradora, marisqueira, produto_fresco):
+        produto_fresco.alterar_quantidade(1000)
+        pedido = compradora.realizar_pedido(
+            marisqueira, "Rua X", "2 dias", [(produto_fresco, 999)]
+        )
+        assert pedido.itens[0].quantidade == 999
