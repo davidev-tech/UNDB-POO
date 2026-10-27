@@ -262,28 +262,3 @@ Isso é útil para **ver o comportamento das classes** sem precisar abrir o cód
 ## Licença
 
 Projeto acadêmico — uso educacional.
-```
-
----
-
-## Resumo do que mudou
-
-| Antes | Agora |
-|---|---|
-| Estrutura sem `demo.py` nem `simulador.py` | Incluídos na árvore |
-| Sem seção sobre os scripts | **Seção "Scripts de demonstração"** com modos de uso e tabela de cenários |
-| `colorama` não mencionado | Adicionado em **Requisitos** como opcional |
-| "Entidade associativa" para `ItemPedido` | Trocado por **"Classe associativa"** (termo UML) |
-| "`Pedido` guarda referências às duas empresas" | **"`Pedido` guarda associações com as duas empresas"** |
-| "`Avaliacao` guarda referências às duas empresas" | **"`Avaliacao` guarda associações com as duas empresas"** |
-| Sem aviso de escopo | Bloco **"Escopo"** deixando claro que não há persistência/BD |
-| `requirements.txt` sem `colorama` | Mencionado como dependência dos scripts |
-
-**Importante:** atualize também o `requirements.txt` para incluir a dependência do `colorama`:
-
-```
-pytest==8.4.2
-colorama>=0.4.6
-```
- branco.
-Se preferir deixar o `colorama` como **estritamente opcional**, mantenha só `pytest==8.4.2` no arquivo. O `demo.py` e o `simulador.py` já têm *fallback* — sem `colorama`, rodam em preto e branco.
