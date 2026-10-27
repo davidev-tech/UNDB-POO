@@ -2,6 +2,8 @@
 
 Documento de modelagem orientada a objetos do sistema **Marisqueiras da Ilha**, alinhado ao PDF de requisitos, critérios e regras de negócio, e à implementação atual (67 testes verdes).
 
+> **Escopo deste documento**: apenas a modelagem orientada a objetos — classes, atributos, métodos, associações, composições, enums, decisões de projeto e rastreabilidade com as regras de negócio. Não trata de persistência, banco de dados, mapeamento objeto-relacional, esquemas, tabelas, chaves ou qualquer forma de armazenamento.
+
 ---
 
 ## 1. Visão geral
@@ -17,142 +19,141 @@ Ambas herdam de uma classe-base **Empresa**, que concentra identidade e horário
 
 ---
 
-## 2. Estrutura do projeto
+## 2. Organização do código
+
+Cada classe do modelo mora em seu próprio módulo Python, e todos são reexportados pelo pacote `marisqueiras`. Essa organização reflete diretamente o diagrama de classes da seção 10 — não há aqui nenhuma noção de armazenamento ou persistência, apenas separação de responsabilidades em arquivos.
 
 ```
-projeto/
-├── marisqueiras/
-│   ├── __init__.py
-│   ├── enums.py                # CategoriaProduto, StatusPedido, StatusEmpresa
-│   ├── excecoes.py             # RegraNegocioError, QuantidadeMinimaError, EstoqueInsuficienteError
-│   ├── empresa.py              # classe-base Empresa
-│   ├── empresa_marisqueira.py  # EmpresaMarisqueira
-│   ├── empresa_compradora.py   # EmpresaCompradora
-│   ├── produto.py              # Produto
-│   ├── item_pedido.py          # ItemPedido
-│   ├── pedido.py               # Pedido
-│   └── avaliacao.py            # Avaliacao
-├── tests/
-│   ├── conftest.py
-│   ├── test_produto.py
-│   ├── test_empresa_marisqueira.py
-│   ├── test_empresa_compradora.py
-│   ├── test_pedido.py
-│   ├── test_avaliacao.py
-│   └── test_fluxo_pedido.py
-├── pytest.ini
-└── MODELAGEM.md
+marisqueiras/
+├── __init__.py                # ponto único de importação
+├── enums.py                   # CategoriaProduto, StatusPedido, StatusEmpresa
+├── excecoes.py                # RegraNegocioError, QuantidadeMinimaError, EstoqueInsuficienteError
+├── empresa.py                 # Empresa (classe-base)
+├── empresa_marisqueira.py     # EmpresaMarisqueira
+├── empresa_compradora.py      # EmpresaCompradora
+├── produto.py                 # Produto
+├── item_pedido.py             # ItemPedido
+├── pedido.py                  # Pedido
+└── avaliacao.py               # Avaliacao
 ```
+
+Os testes da seção 12 ficam em `tests/`, fora do pacote, e existem apenas para verificar a modelagem contra as regras de negócio. Não fazem parte do modelo em si.
 
 ---
 
 ## 3. Classes, atributos e métodos
 
-### 3.1 Empresa (classe base)
+### 3.1 Empresa (classe-base)
 
-| Atributo | Tipo | Observação |
+| Atributo | Tipo | Papel no modelo |
 |---|---|---|
-| `nome` | str | Nome da empresa |
+| `nome` | str | Identidade da empresa |
 | `localizacao` | str | Critério de consulta e ordenação (P21, P22) |
 | `responsavel` | str | Uma pessoa por habitação responde pelo cadastro (P12) |
-| `horario_funcionamento` | (int, int) | Tupla (abertura, fechamento) — usada no indicador visual (P33) |
+| `horario_funcionamento` | (int, int) | Par (abertura, fechamento) usado pelo indicador visual (P33) |
 
 **Métodos:** `esta_no_horario(hora_atual=None)`.
 
 ### 3.2 EmpresaMarisqueira
 
-| Atributo | Tipo | Observação |
+Herda de `Empresa`. Especializa o comportamento com o ciclo de vida do produto e a análise do pedido.
+
+| Atributo | Tipo | Papel no modelo |
 |---|---|---|
-| `produtos` | List[Produto] | Produtos da empresa |
-| `pedidos_recebidos` | List[Pedido] | Histórico de pedidos recebidos |
+| `produtos` | List[Produto] | Produtos oferecidos pela empresa |
+| `pedidos_recebidos` | List[Pedido] | Histórico de pedidos que ela recebeu |
 | `avaliacoes_recebidas` | List[Avaliacao] | Avaliações que a empresa recebeu |
 
 **Métodos:**
 
 | Método | Responsabilidade |
 |---|---|
-| `cadastrar_produto(nome, categoria, preco, quantidade, foto=None)` | Cria produto (P15, P16, P18, RN06) |
-| `consultar_proprios_produtos()` | Retorna apenas os próprios produtos (RN12 / P25) |
-| `alterar_quantidade(produto, nova_qtd)` | Altera estoque (RN08, RN09) |
-| `receber_pedido(pedido)` | Registra o pedido recebido |
-| `aceitar_pedido(pedido)` | Dá baixa no estoque e coloca em `EM_PREPARO` (RN07, RN08, RN18) |
-| `rejeitar_pedido(pedido)` | Marca como `aceito=False` |
-| `solicitar_ajuste(pedido, mensagem)` | Registra mensagem de ajuste no pedido |
-| `atualizar_status_entrega(pedido, novo_status)` | Move `EM_PREPARO → EM_CURSO → FINALIZADO` (RN22) |
-| `registrar_avaliacao(avaliacao)` | Registra avaliação recebida (RN21) |
-| `media_avaliacoes()` | Média aritmética das avaliações (0.0 se não houver) |
-| `status_visual(hora_atual=None)` | Indicador verde / laranja / vermelho (P33, RN20) |
+| `cadastrar_produto(nome, categoria, preco, quantidade, foto=None)` | Cria um `Produto` associado a esta empresa (P15, P16, P18, RN06) |
+| `consultar_proprios_produtos()` | Devolve a lista `produtos` desta empresa (RN12 / P25) |
+| `alterar_quantidade(produto, nova_qtd)` | Delega ao `Produto` a alteração do estoque (RN08, RN09) |
+| `receber_pedido(pedido)` | Registra o `Pedido` em `pedidos_recebidos` |
+| `aceitar_pedido(pedido)` | Valida estoque, baixa em cada `ItemPedido` e coloca `Pedido.status = EM_PREPARO` (RN07, RN08, RN18) |
+| `rejeitar_pedido(pedido)` | Marca `Pedido.aceito = False` |
+| `solicitar_ajuste(pedido, mensagem)` | Grava `Pedido.mensagem_ajuste` |
+| `atualizar_status_entrega(pedido, novo_status)` | Permite `EM_PREPARO → EM_CURSO → FINALIZADO` (RN22) |
+| `registrar_avaliacao(avaliacao)` | Associa a `Avaliacao` a esta empresa (RN21) |
+| `media_avaliacoes()` | Média aritmética das notas recebidas (0.0 se nenhuma) |
+| `status_visual(hora_atual=None)` | Retorna `StatusEmpresa` (verde / laranja / vermelho) — P33, RN20 |
 
 ### 3.3 EmpresaCompradora
 
-| Atributo | Tipo | Observação |
+Herda de `Empresa`. Especializa o comportamento com o consumo do catálogo e a avaliação das fornecedoras.
+
+| Atributo | Tipo | Papel no modelo |
 |---|---|---|
-| `pedidos_realizados` | List[Pedido] | Pedidos feitos pela empresa |
-| `avaliacoes_feitas` | List[Avaliacao] | Avaliações emitidas |
+| `pedidos_realizados` | List[Pedido] | Pedidos que ela criou |
+| `avaliacoes_feitas` | List[Avaliacao] | Avaliações que ela emitiu |
 
 **Métodos:**
 
 | Método | Responsabilidade |
 |---|---|
-| `consultar_produtos(produtos, nome=None, categoria=None, localizacao=None, empresa_marisqueira=None, avaliacao_minima=None, ordenar_por=None)` | Filtros e ordenação (RN10, RN11 / P9, P21, P22) |
-| `comparar_produtos(produto_a, produto_b)` | Comparação (RN12 / P26) |
-| `realizar_pedido(empresa_marisqueira, endereco_entrega, tempo_entrega, itens)` | Cria pedido já validado (RN13, RN14, RN15, RN18) |
-| `avaliar_empresa(empresa_marisqueira, nota, comentario=None)` | Cria avaliação pós-compra (RN21, P23, P24) |
+| `consultar_produtos(produtos, nome=None, categoria=None, localizacao=None, empresa_marisqueira=None, avaliacao_minima=None, ordenar_por=None)` | Filtros e ordenação sobre uma lista de produtos (RN10, RN11 / P9, P21, P22) |
+| `comparar_produtos(produto_a, produto_b)` | Devolve um dicionário comparando dois produtos, possivelmente de empresas diferentes (RN12 / P26) |
+| `realizar_pedido(empresa_marisqueira, endereco_entrega, tempo_entrega, itens)` | Cria um `Pedido` já validado (mesma empresa, mínimo 25 kg por item, estoque) (RN13, RN14, RN15, RN18) |
+| `avaliar_empresa(empresa_marisqueira, nota, comentario=None)` | Cria uma `Avaliacao` somente se houver pedido aceito entre as duas empresas (RN21, P23, P24) |
 
 ### 3.4 Produto
 
-| Atributo | Tipo | Observação |
+| Atributo | Tipo | Papel no modelo |
 |---|---|---|
-| `nome` | str | Nome |
-| `categoria` | CategoriaProduto | `FRESCO` ou `CONGELADO` (RN06) |
+| `nome` | str | Nome do produto |
+| `categoria` | `CategoriaProduto` | `FRESCO` ou `CONGELADO` (RN06) |
 | `preco` | float | Preço por kg (RN04, RN07) |
-| `quantidade_disponivel` | int | Em kg (RN04) |
-| `empresa` | EmpresaMarisqueira | Referência à empresa dona |
+| `quantidade_disponivel` | int | Estoque em kg (RN04) |
+| `empresa` | `EmpresaMarisqueira` | Associação com a empresa dona |
 | `foto` | Optional[str] | Único campo opcional (P15) |
 
 **Métodos:** `alterar_quantidade(nova_qtd)`, `verificar_disponibilidade(qtd)`, `esta_disponivel()`.
 
-> **Nota sobre RN05**: o mínimo de 25 kg é regra de **venda**, não de cadastro. Produtos podem ser cadastrados com qualquer quantidade ≥ 0; a validação de 25 kg acontece no `ItemPedido`.
+> **Nota sobre RN05:** o mínimo de 25 kg é regra de **venda**, não de cadastro. `Produto` aceita qualquer quantidade ≥ 0; a validação de 25 kg acontece no `ItemPedido`.
 
 ### 3.5 ItemPedido
 
-| Atributo | Tipo | Observação |
+Classe associativa que representa a participação de um `Produto` em um `Pedido`.
+
+| Atributo | Tipo | Papel no modelo |
 |---|---|---|
-| `produto` | Produto | Referência ao produto |
-| `quantidade` | int | Em kg |
-| `preco_unitario` | float | Congelado no momento da compra (RN07) |
+| `produto` | `Produto` | Associação com o produto comprado |
+| `quantidade` | int | Quantidade em kg |
+| `preco_unitario` | float | Cópia do preço no instante da compra (RN07) |
 
 **Métodos:** `validar_quantidade()`, `verificar_disponibilidade()`, `atualizar_quantidade(nova_qtd)`, `subtotal()`.
 
 ### 3.6 Pedido
 
-| Atributo | Tipo | Observação |
+| Atributo | Tipo | Papel no modelo |
 |---|---|---|
-| `empresa_compradora` | EmpresaCompradora | Referência ao comprador (RN13) |
-| `empresa_marisqueira` | EmpresaMarisqueira | Referência à fornecedora (RN14) |
+| `empresa_compradora` | `EmpresaCompradora` | Associação com quem realizou o pedido (RN13) |
+| `empresa_marisqueira` | `EmpresaMarisqueira` | Associação com a fornecedora (RN14) |
 | `endereco_entrega` | str | Obrigatório (RN13) |
 | `tempo_entrega` | str | Obrigatório (RN13) |
-| `itens` | List[ItemPedido] | Um pedido pode ter vários produtos (P28) |
+| `itens` | List[ItemPedido] | Composição (P28) |
 | `aceito` | Optional[bool] | `None` = pendente, `True` = aceito, `False` = rejeitado |
 | `status` | Optional[StatusPedido] | `EM_PREPARO`, `EM_CURSO` ou `FINALIZADO` |
 | `mensagem_ajuste` | Optional[str] | Registro de solicitação de ajuste |
-| `criado_em` | datetime | Timestamp |
+| `criado_em` | datetime | Momento de criação |
 
 **Métodos:** `adicionar_item(produto, quantidade)`, `validar_quantidade()`, `verificar_disponibilidade()`, `calcular_total()`, `atualizar_status_entrega(novo_status)`.
 
 ### 3.7 Avaliacao
 
-| Atributo | Tipo | Observação |
+| Atributo | Tipo | Papel no modelo |
 |---|---|---|
-| `empresa_compradora` | EmpresaCompradora | Quem avaliou (RN21) |
-| `empresa_marisqueira` | EmpresaMarisqueira | Quem foi avaliada (RN21) |
+| `empresa_compradora` | `EmpresaCompradora` | Associação com quem avaliou (RN21) |
+| `empresa_marisqueira` | `EmpresaMarisqueira` | Associação com quem foi avaliada (RN21) |
 | `nota` | int | 1 a 5 (P24) |
-| `comentario` | Optional[str] | Comentário |
-| `data` | datetime | Timestamp |
+| `comentario` | Optional[str] | Comentário livre |
+| `data` | datetime | Momento da avaliação |
 
 **Métodos:** `registrar_nota(nota)`.
 
-> **Validação**: o construtor exige que exista um pedido aceito entre as duas empresas. Sem compra, `RegraNegocioError`.
+> **Validação no construtor:** exige que exista um pedido aceito entre as duas empresas. Sem compra, `RegraNegocioError`.
 
 ---
 
@@ -176,21 +177,25 @@ class StatusEmpresa(Enum):
 
 ---
 
-## 5. Relações
+## 5. Associações e composições
 
-| Origem | Multiplicidade | Destino | Tipo |
+Tabela puramente UML — descreve como os objetos se **relacionam em memória**, no modelo de classes.
+
+| Origem | Destino | Tipo | Leitura |
 |---|---|---|---|
-| EmpresaMarisqueira | 1 → N | Produto | Associação |
-| EmpresaMarisqueira | 1 → N | Pedido | Associação (analisa / entrega) |
-| EmpresaCompradora | 1 → N | Pedido | Associação (realiza) |
-| EmpresaCompradora | 1 → N | Avaliacao | Associação (emite) |
-| EmpresaMarisqueira | 1 → N | Avaliacao | Associação (recebe) |
-| Pedido | 1 → N | ItemPedido | Composição |
-| Produto | 1 → N | ItemPedido | Associação (referenciado) |
-| Pedido | N → 1 | EmpresaCompradora | Referência |
-| Pedido | N → 1 | EmpresaMarisqueira | Referência |
-| Avaliacao | N → 1 | EmpresaCompradora | Referência |
-| Avaliacao | N → 1 | EmpresaMarisqueira | Referência |
+| EmpresaMarisqueira | Produto | Associação unidirecional (1 : N) | Uma marisqueira oferece vários produtos; cada produto pertence a uma marisqueira |
+| EmpresaMarisqueira | Pedido | Associação unidirecional (1 : N) | Uma marisqueira recebe vários pedidos; cada pedido é destinado a uma marisqueira |
+| EmpresaCompradora | Pedido | Associação unidirecional (1 : N) | Uma compradora realiza vários pedidos; cada pedido pertence a uma compradora |
+| EmpresaCompradora | Avaliacao | Associação unidirecional (1 : N) | Uma compradora emite várias avaliações; cada avaliação tem um autor |
+| EmpresaMarisqueira | Avaliacao | Associação unidirecional (1 : N) | Uma marisqueira recebe várias avaliações; cada avaliação tem um destinatário |
+| Pedido | ItemPedido | **Composição** (1 : N) | Um pedido é composto por vários itens; um item não existe sem o pedido |
+| Produto | ItemPedido | Associação (1 : N) | Um produto pode aparecer em vários itens; cada item aponta para um produto |
+
+Observações:
+
+- **Herança**: `EmpresaMarisqueira` e `EmpresaCompradora` herdam de `Empresa`.
+- **Composição** em `Pedido → ItemPedido`: o ciclo de vida do item é controlado pelo pedido (o item nasce no `adicionar_item` e não é referenciado fora do pedido).
+- Todas as demais associações são **unidirecionais**, navegáveis a partir da origem.
 
 ---
 
@@ -198,7 +203,7 @@ class StatusEmpresa(Enum):
 
 | # | Restrição | Onde é imposta |
 |---|---|---|
-| R1 | Mínimo de 25 kg por produto na **venda** (não no cadastro) | `ItemPedido.validar_quantidade` (RN05, RN15) |
+| R1 | Mínimo de 25 kg por produto **na venda** (não no cadastro) | `ItemPedido.validar_quantidade` (RN05, RN15) |
 | R2 | Quantidade solicitada ≤ disponível | `ItemPedido.verificar_disponibilidade` (RN18 / P34) |
 | R3 | Um pedido só reúne produtos da mesma marisqueira | `Pedido.adicionar_item` (RN14 / P29) |
 | R4 | Sem valor financeiro mínimo | (nenhuma validação de R$ mínimo) (RN16 / P31) |
@@ -236,15 +241,15 @@ None ──aceitar_pedido──▶ EM_PREPARO ──▶ EM_CURSO ──▶ FINAL
 
 ## 8. Decisões de modelagem
 
-1. **`Pedido` guarda referências às duas empresas** — `empresa_compradora` e `empresa_marisqueira` são atributos do construtor, atendendo RN13 e RN14.
-2. **`Avaliacao` guarda referências às duas empresas** — `empresa_compradora` e `empresa_marisqueira`, atendendo RN21 / P23.
+1. **`Pedido` guarda associações com as duas empresas** — `empresa_compradora` e `empresa_marisqueira` são atributos do construtor, atendendo RN13 e RN14.
+2. **`Avaliacao` guarda associações com as duas empresas** — `empresa_compradora` e `empresa_marisqueira`, atendendo RN21 / P23.
 3. **Apenas 3 estados de entrega** — conforme o PDF (`EM_PREPARO`, `EM_CURSO`, `FINALIZADO`). O `aceite` é um booleano à parte, não um estado do enum.
 4. **`realizar_pedido` recebe uma lista de `(produto, quantidade)`** — já valida tudo de uma vez (mesma empresa, mínimo 25 kg por item, estoque), e só então instancia o `Pedido`. Sem isso, um "pedido inválido" poderia ser construído em etapas.
-5. **`consultar_produtos` recebe a lista de produtos por parâmetro** — não existe registro global nem repositório. Quem quiser consultar passa a lista (por exemplo, `marisqueira.consultar_proprios_produtos()` ou a soma de vários).
+5. **`consultar_produtos` recebe a lista de produtos por parâmetro** — não existe repositório nem coleção global. Quem quiser consultar passa a lista (por exemplo, `marisqueira.consultar_proprios_produtos()` ou a soma de várias).
 6. **RN05 é regra de venda, não de cadastro** — `Produto` aceita qualquer quantidade ≥ 0; o mínimo de 25 kg só é validado em `ItemPedido`.
 7. **RN20 implementada** — `status_visual` retorna verde / laranja / vermelho com base no horário de funcionamento e no estoque.
-8. **RN07 garantida por congelamento do preço** — `ItemPedido.preco_unitario` guarda o preço no momento da compra; alterações posteriores em `Produto.preco` não afetam o item.
-9. **RN23 garantida por omissão** — o custo da entrega está embutido em `Produto.preco`; não há campo de frete separado.
+8. **RN07 garantida por cópia do preço** — `ItemPedido.preco_unitario` guarda o preço no momento da compra; alterações posteriores em `Produto.preco` não afetam o item.
+9. **RN23 garantida por omissão** — o custo da entrega está embutido em `Produto.preco`; não há atributo de frete separado.
 
 ---
 
@@ -280,7 +285,7 @@ Perguntas P relevantes: P12 (responsável), P15 (foto opcional), P16 (kg), P18 (
 
 ---
 
-## 10. Diagrama de classes (Mermaid)
+## 10. Diagrama de classes (UML)
 
 ```mermaid
 classDiagram
@@ -369,7 +374,7 @@ classDiagram
     Empresa <|-- EmpresaCompradora
 
     EmpresaMarisqueira "1" --> "N" Produto : oferece
-    EmpresaMarisqueira "1" --> "N" Pedido : prepara/entrega
+    EmpresaMarisqueira "1" --> "N" Pedido : analisa/entrega
     EmpresaCompradora  "1" --> "N" Pedido : realiza
     EmpresaCompradora  "1" --> "N" Avaliacao : emite
     EmpresaMarisqueira "1" --> "N" Avaliacao : recebe
@@ -413,8 +418,6 @@ classDiagram
 
 **67 testes · todos verdes.**
 
-Para rodar:
-
 ```bash
 python -m pip install -r requirements.txt
 python -m pytest tests/ -v
@@ -434,8 +437,8 @@ python -m pytest tests/ -v
 
 ## 13. Decisões confirmadas
 
-1. **`Pedido` guarda referências às duas empresas** — confirmado.
-2. **`Avaliacao` guarda referências às duas empresas** — confirmado.
+1. **`Pedido` guarda associações com as duas empresas** — confirmado.
+2. **`Avaliacao` guarda associações com as duas empresas** — confirmado.
 3. **`aceitar_pedido()` e `rejeitar_pedido()` ficam em `EmpresaMarisqueira`** — confirmado.
 4. **Apenas 3 estados de entrega** — confirmado (`EM_PREPARO`, `EM_CURSO`, `FINALIZADO`). O aceite é um booleano, não um estado.
 5. **`solicitar_ajuste()` existe** — está na lista oficial de métodos do PDF e foi implementado.

@@ -13,8 +13,11 @@ Este repositório contém:
 - **Modelagem POO** das classes do domínio (`MODELAGEM_POO.md`)
 - **Implementação** das classes em Python (pacote `marisqueiras/`)
 - **Testes unitários** que validam a modelagem contra as regras de negócio (`tests/`)
+- **Scripts de demonstração** que exercitam as classes de forma interativa ou roteirizada (`demo.py` e `simulador.py`)
 
-O foco é a **modelagem** — os testes servem como especificação executável das regras de negócio (RN01 a RN23) definidas no documento-base da disciplina.
+O foco é a **modelagem orientada a objetos** — os testes servem como especificação executável das regras de negócio (RN01 a RN23) definidas no documento-base da disciplina.
+
+> **Escopo**: o projeto trata apenas de modelagem POO. Não há persistência, banco de dados, esquemas, mapeamento objeto-relacional ou qualquer forma de armazenamento.
 
 ---
 
@@ -41,6 +44,8 @@ O foco é a **modelagem** — os testes servem como especificação executável 
 │   ├── test_pedido.py
 │   ├── test_avaliacao.py
 │   └── test_fluxo_pedido.py
+├── demo.py                      # Demo roteirizada (saída fixa para o artigo)
+├── simulador.py                 # Simulador interativo (usuário digita as entradas)
 ├── MODELAGEM_POO.md             # Documento de modelagem
 ├── pytest.ini                   # Configuração do pytest
 ├── requirements.txt             # Dependências
@@ -57,11 +62,11 @@ O foco é a **modelagem** — os testes servem como especificação executável 
 | `EmpresaMarisqueira` | Fornecedora. Cadastra produtos, analisa pedidos, realiza a entrega, atualiza status. |
 | `EmpresaCompradora` | Compradora. Consulta produtos, realiza pedidos, avalia marisqueiras. |
 | `Produto` | Produto oferecido por uma marisqueira. |
-| `ItemPedido` | Entidade associativa entre `Pedido` e `Produto`. |
+| `ItemPedido` | Classe associativa entre `Pedido` e `Produto`. |
 | `Pedido` | Pedido de compra realizado por uma empresa compradora. |
 | `Avaliacao` | Avaliação (1 a 5 estrelas) de uma marisqueira por uma compradora. |
 
-Detalhes de atributos, métodos, relações e restrições em [`MODELAGEM_POO.md`](MODELAGEM_POO.md).
+Detalhes de atributos, métodos, associações e restrições em [`MODELAGEM_POO.md`](MODELAGEM_POO.md).
 
 ---
 
@@ -69,6 +74,7 @@ Detalhes de atributos, métodos, relações e restrições em [`MODELAGEM_POO.md
 
 - Python 3.9 ou superior
 - pytest (declarado em `requirements.txt`)
+- colorama (opcional — apenas para os scripts `demo.py` e `simulador.py` exibirem cores no terminal)
 
 Instalação das dependências:
 
@@ -179,24 +185,105 @@ Os três estados de entrega (`EM_PREPARO`, `EM_CURSO`, `FINALIZADO`) vêm direta
 
 ---
 
+## Scripts de demonstração
+
+Além dos testes, o projeto inclui **dois scripts** para exercitar as classes na prática. Ambos usam `colorama` (se instalado) para colorir a saída; se não estiver instalado, rodam sem cor.
+
+### `demo.py` — demonstração roteirizada (saída fixa)
+
+Executa **9 cenários pré-programados**, um por classe ou comportamento. Ideal para colar a saída no artigo, porque o resultado é sempre o mesmo.
+
+**Modos de uso:**
+
+```bash
+python demo.py                 # menu interativo com os 9 cenários
+python demo.py --all           # roda todos de uma vez
+python demo.py --scenario 3    # roda só o cenário 3
+python demo.py --all > saida_demo.txt   # gera o arquivo para o artigo
+```
+
+**Cenários disponíveis:**
+
+| # | Cenário | Regras / Perguntas |
+|---|---|---|
+| 1 | EmpresaMarisqueira — cadastro de produto | RN05, RN06, P15, P16, P18 |
+| 2 | EmpresaMarisqueira — estoque e indicador visual | RN08, RN09, RN19, RN20, P19, P20, P33 |
+| 3 | EmpresaMarisqueira — análise de pedido | RN07, RN08, P7 |
+| 4 | EmpresaMarisqueira — status de entrega | RN22, P7 |
+| 5 | EmpresaCompradora — consulta e comparação | RN10, RN11, RN12, P9, P21, P22, P25, P26 |
+| 6 | EmpresaCompradora — realizar pedido | RN13 a RN18, P27 a P34 |
+| 7 | EmpresaCompradora — avaliar marisqueira | RN21, P23, P24 |
+| 8 | ItemPedido / Pedido — validações internas | RN05, RN07, RN15, RN18 |
+| 9 | Fluxo completo ponta a ponta | P7 |
+
+Cada passo imprime um marcador `[OK]` (operação bem-sucedida), `[BLOQ]` (bloqueio esperado por regra de negócio), `[ERRO]` (comportamento inesperado — não deve aparecer) ou `[INFO]` (explicação da regra em jogo).
+
+### `simulador.py` — simulador interativo
+
+Permite **você digitar as entradas**. Cada operação é validada em tempo real contra as regras de negócio, e quando uma regra é violada o sistema mostra qual.
+
+```bash
+python simulador.py
+```
+
+O menu principal oferece:
+
+- Cadastrar empresa (marisqueira ou compradora)
+- Entrar como Marisqueira (cadastrar produto, alterar estoque, analisar pedido, atualizar entrega, ver indicador visual)
+- Entrar como Compradora (consultar, comparar, realizar pedido, avaliar)
+
+Toda vez que uma regra é violada, o simulador imprime:
+
+```
+[BLOQ] <mensagem original da classe>
+→ <regra do PDF que foi violada>
+```
+
+Isso é útil para **ver o comportamento das classes** sem precisar abrir o código-fonte.
+
+---
+
 ## Decisões de modelagem
 
-1. **`Pedido` guarda referências às duas empresas** — `empresa_compradora` e `empresa_marisqueira` são atributos do construtor, atendendo RN13 e RN14.
-2. **`Avaliacao` guarda referências às duas empresas** — atendendo RN21 / P23.
+1. **`Pedido` guarda associações com as duas empresas** — `empresa_compradora` e `empresa_marisqueira` são atributos do construtor, atendendo RN13 e RN14.
+2. **`Avaliacao` guarda associações com as duas empresas** — atendendo RN21 / P23.
 3. **`aceitar_pedido()` e `rejeitar_pedido()` ficam em `EmpresaMarisqueira`** — é ela quem analisa o pedido.
 4. **Apenas 3 estados de entrega** — o aceite é um booleano à parte, não um estado do enum (RN22).
 5. **`solicitar_ajuste()` existe** — está na lista oficial de métodos do PDF.
 6. **`realizar_pedido` recebe lista de `(produto, quantidade)`** — já valida tudo de uma vez (RN14, RN15, RN18) antes de instanciar o `Pedido`.
-7. **`consultar_produtos` recebe a lista de produtos por parâmetro** — sem registro global nem repositório.
+7. **`consultar_produtos` recebe a lista de produtos por parâmetro** — sem coleção global nem repositório.
 8. **RN05 é regra de venda, não de cadastro** — `Produto` aceita qualquer quantidade ≥ 0; o mínimo de 25 kg só é validado no `ItemPedido`.
 9. **RN20 implementada** — `status_visual` retorna verde / laranja / vermelho.
-10. **RN07 garantida por congelamento do preço** — `ItemPedido.preco_unitario` guarda o preço no momento da compra.
-11. **RN23 garantida por omissão** — o custo da entrega está embutido em `Produto.preco`; não há campo de frete separado.
+10. **RN07 garantida por cópia do preço** — `ItemPedido.preco_unitario` guarda o preço no momento da compra.
+11. **RN23 garantida por omissão** — o custo da entrega está embutido em `Produto.preco`; não há atributo de frete separado.
 
 ---
 
 ## Licença
 
 Projeto acadêmico — uso educacional.
+```
 
 ---
+
+## Resumo do que mudou
+
+| Antes | Agora |
+|---|---|
+| Estrutura sem `demo.py` nem `simulador.py` | Incluídos na árvore |
+| Sem seção sobre os scripts | **Seção "Scripts de demonstração"** com modos de uso e tabela de cenários |
+| `colorama` não mencionado | Adicionado em **Requisitos** como opcional |
+| "Entidade associativa" para `ItemPedido` | Trocado por **"Classe associativa"** (termo UML) |
+| "`Pedido` guarda referências às duas empresas" | **"`Pedido` guarda associações com as duas empresas"** |
+| "`Avaliacao` guarda referências às duas empresas" | **"`Avaliacao` guarda associações com as duas empresas"** |
+| Sem aviso de escopo | Bloco **"Escopo"** deixando claro que não há persistência/BD |
+| `requirements.txt` sem `colorama` | Mencionado como dependência dos scripts |
+
+**Importante:** atualize também o `requirements.txt` para incluir a dependência do `colorama`:
+
+```
+pytest==8.4.2
+colorama>=0.4.6
+```
+ branco.
+Se preferir deixar o `colorama` como **estritamente opcional**, mantenha só `pytest==8.4.2` no arquivo. O `demo.py` e o `simulador.py` já têm *fallback* — sem `colorama`, rodam em preto e branco.
