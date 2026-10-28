@@ -43,71 +43,65 @@ Os testes da seção 12 ficam em `tests/`, fora do pacote, e existem apenas para
 
 ## 3. Classes, atributos e métodos
 
-### 3.1 Empresa (classe-base)
+### 3.1 Empresa (classe-base abstrata)
 
-| Atributo | Tipo | Papel no modelo |
-|---|---|---|
-| `nome` | str | Identidade da empresa |
-| `localizacao` | str | Critério de consulta e ordenação (P21, P22) |
-| `responsavel` | str | Uma pessoa por habitação responde pelo cadastro (P12) |
-| `horario_funcionamento` | (int, int) | Par (abertura, fechamento) usado pelo indicador visual (P33) |
+| Atributo | Papel no modelo |
+|---|---|
+| `nome` | Identidade da empresa |
+| `localizacao` | Critério de consulta e ordenação (P21, P22) |
+| `responsavel` | Uma pessoa por habitação responde pelo cadastro (P12) |
+| `horario_funcionamento` | Par (abertura, fechamento) usado pelo indicador visual (P33) |
 
-**Métodos:** `esta_no_horario(hora_atual=None)`.
+**Métodos:** `esta_no_horario(hora_atual)`.
 
 ### 3.2 EmpresaMarisqueira
 
 Herda de `Empresa`. Especializa o comportamento com o ciclo de vida do produto e a análise do pedido.
 
-| Atributo | Tipo | Papel no modelo |
-|---|---|---|
-| `produtos` | List[Produto] | Produtos oferecidos pela empresa |
-| `pedidos_recebidos` | List[Pedido] | Histórico de pedidos que ela recebeu |
-| `avaliacoes_recebidas` | List[Avaliacao] | Avaliações que a empresa recebeu |
+**Atributos próprios:** *nenhum* — as coleções `produtos`, `pedidos_recebidos` e `avaliacoes_recebidas` aparecem no diagrama como **associações** (seção 5), não como atributos internos.
 
 **Métodos:**
 
 | Método | Responsabilidade |
 |---|---|
-| `cadastrar_produto(nome, categoria, preco, quantidade, foto=None)` | Cria um `Produto` associado a esta empresa (P15, P16, P18, RN06) |
-| `consultar_proprios_produtos()` | Devolve a lista `produtos` desta empresa (RN12 / P25) |
+| `cadastrar_produto(nome, categoria, preco, quantidade, foto)` | Cria um `Produto` associado a esta empresa (P15, P16, P18, RN06) |
+| `consultar_proprios_produtos()` | Devolve os produtos desta empresa (RN12 / P25) |
 | `alterar_quantidade(produto, nova_qtd)` | Delega ao `Produto` a alteração do estoque (RN08, RN09) |
-| `receber_pedido(pedido)` | Registra o `Pedido` em `pedidos_recebidos` |
+| `receber_pedido(pedido)` | Registra o `Pedido` recebido |
 | `aceitar_pedido(pedido)` | Valida estoque, baixa em cada `ItemPedido` e coloca `Pedido.status = EM_PREPARO` (RN07, RN08, RN18) |
 | `rejeitar_pedido(pedido)` | Marca `Pedido.aceito = False` |
 | `solicitar_ajuste(pedido, mensagem)` | Grava `Pedido.mensagem_ajuste` |
 | `atualizar_status_entrega(pedido, novo_status)` | Permite `EM_PREPARO → EM_CURSO → FINALIZADO` (RN22) |
 | `registrar_avaliacao(avaliacao)` | Associa a `Avaliacao` a esta empresa (RN21) |
 | `media_avaliacoes()` | Média aritmética das notas recebidas (0.0 se nenhuma) |
-| `status_visual(hora_atual=None)` | Retorna `StatusEmpresa` (verde / laranja / vermelho) — P33, RN20 |
+| `status_visual(hora_atual)` | Retorna `StatusEmpresa` (verde / laranja / vermelho) — P33, RN20 |
 
 ### 3.3 EmpresaCompradora
 
 Herda de `Empresa`. Especializa o comportamento com o consumo do catálogo e a avaliação das fornecedoras.
 
-| Atributo | Tipo | Papel no modelo |
-|---|---|---|
-| `pedidos_realizados` | List[Pedido] | Pedidos que ela criou |
-| `avaliacoes_feitas` | List[Avaliacao] | Avaliações que ela emitiu |
+**Atributos próprios:** *nenhum* — as coleções `pedidos_realizados` e `avaliacoes_feitas` aparecem no diagrama como **associações** (seção 5).
 
 **Métodos:**
 
 | Método | Responsabilidade |
 |---|---|
-| `consultar_produtos(produtos, nome=None, categoria=None, localizacao=None, empresa_marisqueira=None, avaliacao_minima=None, ordenar_por=None)` | Filtros e ordenação sobre uma lista de produtos (RN10, RN11 / P9, P21, P22) |
-| `comparar_produtos(produto_a, produto_b)` | Devolve um dicionário comparando dois produtos, possivelmente de empresas diferentes (RN12 / P26) |
-| `realizar_pedido(empresa_marisqueira, endereco_entrega, tempo_entrega, itens)` | Cria um `Pedido` já validado (mesma empresa, mínimo 25 kg por item, estoque) (RN13, RN14, RN15, RN18) |
-| `avaliar_empresa(empresa_marisqueira, nota, comentario=None)` | Cria uma `Avaliacao` somente se houver pedido aceito entre as duas empresas (RN21, P23, P24) |
+| `consultar_produtos(produtos, filtros, ordenacao)` | Filtros e ordenação sobre uma lista de produtos (RN10, RN11 / P9, P21, P22) |
+| `comparar_produtos(produto_a, produto_b)` | Compara dois produtos, possivelmente de empresas diferentes (RN12 / P26) |
+| `realizar_pedido(marisqueira, endereco, tempo, itens)` | Cria um `Pedido` já validado (mesma empresa, mínimo 25 kg por item, estoque) (RN13, RN14, RN15, RN18) |
+| `avaliar_empresa(marisqueira, nota, comentario)` | Cria uma `Avaliacao` somente se houver pedido aceito entre as duas empresas (RN21, P23, P24) |
 
 ### 3.4 Produto
 
-| Atributo | Tipo | Papel no modelo |
-|---|---|---|
-| `nome` | str | Nome do produto |
-| `categoria` | `CategoriaProduto` | `FRESCO` ou `CONGELADO` (RN06) |
-| `preco` | float | Preço por kg (RN04, RN07) |
-| `quantidade_disponivel` | int | Estoque em kg (RN04) |
-| `empresa` | `EmpresaMarisqueira` | Associação com a empresa dona |
-| `foto` | Optional[str] | Único campo opcional (P15) |
+| Atributo | Papel no modelo |
+|---|---|
+| `nome` | Nome do produto |
+| `categoria` | `CategoriaProduto` (fresco ou congelado) — RN06 |
+| `preco` | Preço por kg (RN04, RN07) |
+| `quantidade_disponivel` | Estoque em kg (RN04) |
+| `foto` | Único campo opcional (P15) |
+
+A associação com `EmpresaMarisqueira` aparece no diagrama como **linha de associação** (seção 5), não como atributo interno.
 
 **Métodos:** `alterar_quantidade(nova_qtd)`, `verificar_disponibilidade(qtd)`, `esta_disponivel()`.
 
@@ -117,39 +111,39 @@ Herda de `Empresa`. Especializa o comportamento com o consumo do catálogo e a a
 
 Classe associativa que representa a participação de um `Produto` em um `Pedido`.
 
-| Atributo | Tipo | Papel no modelo |
-|---|---|---|
-| `produto` | `Produto` | Associação com o produto comprado |
-| `quantidade` | int | Quantidade em kg |
-| `preco_unitario` | float | Cópia do preço no instante da compra (RN07) |
+| Atributo | Papel no modelo |
+|---|---|
+| `quantidade` | Quantidade em kg |
+| `preco_unitario` | Cópia do preço no instante da compra (RN07) |
+
+As associações com `Produto` e com `Pedido` aparecem no diagrama como **linhas** (seção 5).
 
 **Métodos:** `validar_quantidade()`, `verificar_disponibilidade()`, `atualizar_quantidade(nova_qtd)`, `subtotal()`.
 
 ### 3.6 Pedido
 
-| Atributo | Tipo | Papel no modelo |
-|---|---|---|
-| `empresa_compradora` | `EmpresaCompradora` | Associação com quem realizou o pedido (RN13) |
-| `empresa_marisqueira` | `EmpresaMarisqueira` | Associação com a fornecedora (RN14) |
-| `endereco_entrega` | str | Obrigatório (RN13) |
-| `tempo_entrega` | str | Obrigatório (RN13) |
-| `itens` | List[ItemPedido] | Composição (P28) |
-| `aceito` | Optional[bool] | `None` = pendente, `True` = aceito, `False` = rejeitado |
-| `status` | Optional[StatusPedido] | `EM_PREPARO`, `EM_CURSO` ou `FINALIZADO` |
-| `mensagem_ajuste` | Optional[str] | Registro de solicitação de ajuste |
-| `criado_em` | datetime | Momento de criação |
+| Atributo | Papel no modelo |
+|---|---|
+| `endereco_entrega` | Obrigatório (RN13) |
+| `tempo_entrega` | Obrigatório (RN13) |
+| `aceito` | `None` = pendente, `True` = aceito, `False` = rejeitado |
+| `status` | `StatusPedido` — `EM_PREPARO`, `EM_CURSO` ou `FINALIZADO` |
+| `mensagem_ajuste` | Registro de solicitação de ajuste |
+| `criado_em` | Momento de criação |
+
+As associações com `EmpresaCompradora`, `EmpresaMarisqueira` e com os `ItemPedido` aparecem no diagrama como **linhas** (seção 5) — no caso dos itens, como **composição**.
 
 **Métodos:** `adicionar_item(produto, quantidade)`, `validar_quantidade()`, `verificar_disponibilidade()`, `calcular_total()`, `atualizar_status_entrega(novo_status)`.
 
 ### 3.7 Avaliacao
 
-| Atributo | Tipo | Papel no modelo |
-|---|---|---|
-| `empresa_compradora` | `EmpresaCompradora` | Associação com quem avaliou (RN21) |
-| `empresa_marisqueira` | `EmpresaMarisqueira` | Associação com quem foi avaliada (RN21) |
-| `nota` | int | 1 a 5 (P24) |
-| `comentario` | Optional[str] | Comentário livre |
-| `data` | datetime | Momento da avaliação |
+| Atributo | Papel no modelo |
+|---|---|
+| `nota` | 1 a 5 (P24) |
+| `comentario` | Comentário livre |
+| `data` | Momento da avaliação |
+
+As associações com `EmpresaCompradora` (quem emitiu) e `EmpresaMarisqueira` (quem recebeu) aparecem no diagrama como **linhas** (seção 5).
 
 **Métodos:** `registrar_nota(nota)`.
 
@@ -157,7 +151,7 @@ Classe associativa que representa a participação de um `Produto` em um `Pedido
 
 ---
 
-## 4. Enums
+## 4. Enumerações
 
 ```python
 class CategoriaProduto(Enum):
@@ -175,6 +169,8 @@ class StatusEmpresa(Enum):
     FORA_DO_HORARIO = "vermelho"
 ```
 
+`Produto` **usa** `CategoriaProduto`; `Pedido` **usa** `StatusPedido`; `EmpresaMarisqueira` **usa** `StatusEmpresa`. Essas relações aparecem no diagrama como **setas tracejadas** (dependência).
+
 ---
 
 ## 5. Associações e composições
@@ -183,19 +179,25 @@ Tabela puramente UML — descreve como os objetos se **relacionam em memória**,
 
 | Origem | Destino | Tipo | Leitura |
 |---|---|---|---|
-| EmpresaMarisqueira | Produto | Associação unidirecional (1 : N) | Uma marisqueira oferece vários produtos; cada produto pertence a uma marisqueira |
-| EmpresaMarisqueira | Pedido | Associação unidirecional (1 : N) | Uma marisqueira recebe vários pedidos; cada pedido é destinado a uma marisqueira |
-| EmpresaCompradora | Pedido | Associação unidirecional (1 : N) | Uma compradora realiza vários pedidos; cada pedido pertence a uma compradora |
-| EmpresaCompradora | Avaliacao | Associação unidirecional (1 : N) | Uma compradora emite várias avaliações; cada avaliação tem um autor |
-| EmpresaMarisqueira | Avaliacao | Associação unidirecional (1 : N) | Uma marisqueira recebe várias avaliações; cada avaliação tem um destinatário |
-| Pedido | ItemPedido | **Composição** (1 : N) | Um pedido é composto por vários itens; um item não existe sem o pedido |
-| Produto | ItemPedido | Associação (1 : N) | Um produto pode aparecer em vários itens; cada item aponta para um produto |
+| Empresa | EmpresaMarisqueira | **Herança** | Especialização da classe-base |
+| Empresa | EmpresaCompradora | **Herança** | Especialização da classe-base |
+| EmpresaMarisqueira (1) | Produto (0..*) | Associação unidirecional | Uma marisqueira oferece vários produtos; cada produto pertence a uma marisqueira |
+| EmpresaMarisqueira (1) | Pedido (0..*) | Associação unidirecional | Uma marisqueira analisa vários pedidos; cada pedido é destinado a uma marisqueira |
+| EmpresaCompradora (1) | Pedido (0..*) | Associação unidirecional | Uma compradora realiza vários pedidos; cada pedido pertence a uma compradora |
+| EmpresaCompradora (1) | Avaliacao (0..*) | Associação unidirecional | Uma compradora emite várias avaliações; cada avaliação tem um autor |
+| EmpresaMarisqueira (1) | Avaliacao (0..*) | Associação unidirecional | Uma marisqueira recebe várias avaliações; cada avaliação tem um destinatário |
+| Pedido (1) | ItemPedido (1..*) | **Composição** | Um pedido é composto por vários itens; um item não existe sem o pedido |
+| Produto (1) | ItemPedido (0..*) | Associação unidirecional | Um produto pode aparecer em vários itens; cada item aponta para um produto |
+| Produto | CategoriaProduto | Dependência | Uso do enum de categorias |
+| Pedido | StatusPedido | Dependência | Uso do enum de status de entrega |
+| EmpresaMarisqueira | StatusEmpresa | Dependência | Uso do enum de indicador visual |
 
 Observações:
 
-- **Herança**: `EmpresaMarisqueira` e `EmpresaCompradora` herdam de `Empresa`.
+- **Herança**: `EmpresaMarisqueira` e `EmpresaCompradora` herdam de `Empresa`, que é abstrata.
 - **Composição** em `Pedido → ItemPedido`: o ciclo de vida do item é controlado pelo pedido (o item nasce no `adicionar_item` e não é referenciado fora do pedido).
 - Todas as demais associações são **unidirecionais**, navegáveis a partir da origem.
+- As **coleções** que aparecem no código (`produtos`, `pedidos_recebidos`, etc.) são o **efeito em memória** dessas associações — em UML, elas **não aparecem dentro das caixas** como atributos, e sim como as linhas correspondentes.
 
 ---
 
@@ -245,11 +247,12 @@ None ──aceitar_pedido──▶ EM_PREPARO ──▶ EM_CURSO ──▶ FINAL
 2. **`Avaliacao` guarda associações com as duas empresas** — `empresa_compradora` e `empresa_marisqueira`, atendendo RN21 / P23.
 3. **Apenas 3 estados de entrega** — conforme o PDF (`EM_PREPARO`, `EM_CURSO`, `FINALIZADO`). O `aceite` é um booleano à parte, não um estado do enum.
 4. **`realizar_pedido` recebe uma lista de `(produto, quantidade)`** — já valida tudo de uma vez (mesma empresa, mínimo 25 kg por item, estoque), e só então instancia o `Pedido`. Sem isso, um "pedido inválido" poderia ser construído em etapas.
-5. **`consultar_produtos` recebe a lista de produtos por parâmetro** — não existe repositório nem coleção global. Quem quiser consultar passa a lista (por exemplo, `marisqueira.consultar_proprios_produtos()` ou a soma de várias).
+5. **`consultar_produtos` recebe a lista de produtos por parâmetro** — não existe coleção global nem repositório. Quem quiser consultar passa a lista (por exemplo, `marisqueira.consultar_proprios_produtos()` ou a soma de várias).
 6. **RN05 é regra de venda, não de cadastro** — `Produto` aceita qualquer quantidade ≥ 0; o mínimo de 25 kg só é validado em `ItemPedido`.
 7. **RN20 implementada** — `status_visual` retorna verde / laranja / vermelho com base no horário de funcionamento e no estoque.
 8. **RN07 garantida por cópia do preço** — `ItemPedido.preco_unitario` guarda o preço no momento da compra; alterações posteriores em `Produto.preco` não afetam o item.
 9. **RN23 garantida por omissão** — o custo da entrega está embutido em `Produto.preco`; não há atributo de frete separado.
+10. **Coleções como associações, não como atributos** — em conformidade com a notação UML de POO, as coleções (`produtos`, `pedidos_recebidos`, `itens` etc.) aparecem no diagrama como linhas de associação/composição, e não como atributos dentro das caixas.
 
 ---
 
@@ -287,100 +290,152 @@ Perguntas P relevantes: P12 (responsável), P15 (foto opcional), P16 (kg), P18 (
 
 ## 10. Diagrama de classes (UML)
 
-```mermaid
-classDiagram
-    class Empresa {
-        +nome
-        +localizacao
-        +responsavel
-        +horario_funcionamento
-        +esta_no_horario()
-    }
+O diagrama abaixo é a representação gráfica oficial do modelo. Ele foi gerado a partir do código PlantUML a seguir, utilizando **setas ortogonais** (`linetype ortho`) para manter o layout organizado.
 
-    class EmpresaMarisqueira {
-        +produtos: List~Produto~
-        +pedidos_recebidos: List~Pedido~
-        +avaliacoes_recebidas: List~Avaliacao~
-        +cadastrar_produto()
-        +consultar_proprios_produtos()
-        +alterar_quantidade()
-        +receber_pedido()
-        +aceitar_pedido()
-        +rejeitar_pedido()
-        +solicitar_ajuste()
-        +atualizar_status_entrega()
-        +registrar_avaliacao()
-        +media_avaliacoes()
-        +status_visual()
-    }
+### 10.1 Código-fonte (PlantUML)
 
-    class EmpresaCompradora {
-        +pedidos_realizados: List~Pedido~
-        +avaliacoes_feitas: List~Avaliacao~
-        +consultar_produtos()
-        +comparar_produtos()
-        +realizar_pedido()
-        +avaliar_empresa()
-    }
+```plantuml
+@startuml Marisques_UML
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+skinparam classFontStyle bold
+skinparam classBackgroundColor #FAFAFA
+skinparam classBorderColor #333333
+skinparam arrowColor #333333
+skinparam arrowThickness 1.2
+hide empty members
+top to bottom direction
 
-    class Produto {
-        +nome
-        +categoria: CategoriaProduto
-        +preco
-        +quantidade_disponivel
-        +empresa
-        +foto
-        +alterar_quantidade()
-        +verificar_disponibilidade()
-        +esta_disponivel()
-    }
+' ─── CLASSE ABSTRATA BASE ───
+abstract class "Empresa" as Empresa {
+  - nome
+  - localizacao
+  - responsavel
+  - horario_funcionamento
+  + esta_no_horario(hora_atual)
+}
 
-    class ItemPedido {
-        +produto
-        +quantidade
-        +preco_unitario
-        +validar_quantidade()
-        +verificar_disponibilidade()
-        +atualizar_quantidade()
-        +subtotal()
-    }
+' ─── SUBCLASSES ───
+class "EmpresaMarisqueira" as EmpresaMarisqueira {
+  + cadastrar_produto(nome, categoria, preco, quantidade, foto)
+  + consultar_proprios_produtos()
+  + alterar_quantidade(produto, nova_quantidade)
+  + receber_pedido(pedido)
+  + aceitar_pedido(pedido)
+  + rejeitar_pedido(pedido)
+  + solicitar_ajuste(pedido, mensagem)
+  + atualizar_status_entrega(pedido, novo_status)
+  + registrar_avaliacao(avaliacao)
+  + media_avaliacoes()
+  + status_visual(hora_atual)
+}
 
-    class Pedido {
-        +empresa_compradora
-        +empresa_marisqueira
-        +endereco_entrega
-        +tempo_entrega
-        +itens: List~ItemPedido~
-        +aceito: Optional~bool~
-        +status: Optional~StatusPedido~
-        +mensagem_ajuste
-        +adicionar_item()
-        +validar_quantidade()
-        +verificar_disponibilidade()
-        +calcular_total()
-        +atualizar_status_entrega()
-    }
+class "EmpresaCompradora" as EmpresaCompradora {
+  + consultar_produtos(produtos, filtros, ordenacao)
+  + comparar_produtos(produto_a, produto_b)
+  + realizar_pedido(marisqueira, endereco, tempo, itens)
+  + avaliar_empresa(marisqueira, nota, comentario)
+}
 
-    class Avaliacao {
-        +empresa_compradora
-        +empresa_marisqueira
-        +nota
-        +comentario
-        +data
-        +registrar_nota()
-    }
+' ─── CLASSES DE DOMÍNIO ───
+class "Produto" as Produto {
+  - nome
+  - categoria
+  - preco
+  - quantidade_disponivel
+  - foto
+  + alterar_quantidade(nova_quantidade)
+  + verificar_disponibilidade(quantidade)
+  + esta_disponivel()
+}
 
-    Empresa <|-- EmpresaMarisqueira
-    Empresa <|-- EmpresaCompradora
+class "Pedido" as Pedido {
+  - endereco_entrega
+  - tempo_entrega
+  - aceito
+  - status
+  - mensagem_ajuste
+  - criado_em
+  + adicionar_item(produto, quantidade)
+  + validar_quantidade()
+  + verificar_disponibilidade()
+  + calcular_total()
+  + atualizar_status_entrega(novo_status)
+}
 
-    EmpresaMarisqueira "1" --> "N" Produto : oferece
-    EmpresaMarisqueira "1" --> "N" Pedido : analisa/entrega
-    EmpresaCompradora  "1" --> "N" Pedido : realiza
-    EmpresaCompradora  "1" --> "N" Avaliacao : emite
-    EmpresaMarisqueira "1" --> "N" Avaliacao : recebe
-    Pedido "1" *-- "N" ItemPedido : compõe
-    Produto "1" --> "N" ItemPedido : referenciado
+class "ItemPedido" as ItemPedido {
+  - quantidade
+  - preco_unitario
+  + validar_quantidade()
+  + verificar_disponibilidade()
+  + atualizar_quantidade(nova_quantidade)
+  + subtotal()
+}
+
+class "Avaliacao" as Avaliacao {
+  - nota
+  - comentario
+  - data
+  + registrar_nota(nota)
+}
+
+' ─── ENUMERAÇÕES ───
+enum "CategoriaProduto" as CategoriaProduto {
+  FRESCO
+  CONGELADO
+}
+
+enum "StatusPedido" as StatusPedido {
+  EM_PREPARO
+  EM_CURSO
+  FINALIZADO
+}
+
+enum "StatusEmpresa" as StatusEmpresa {
+  DISPONIVEL
+  ESTOQUE_BAIXO
+  FORA_DO_HORARIO
+}
+
+' ─── RELAÇÕES ───
+Empresa <|-- EmpresaMarisqueira
+Empresa <|-- EmpresaCompradora
+
+EmpresaMarisqueira "1" --> "0..*" Produto : oferece
+EmpresaMarisqueira "1" --> "0..*" Pedido : analisa
+EmpresaCompradora  "1" --> "0..*" Pedido : realiza
+EmpresaCompradora  "1" --> "0..*" Avaliacao : emite
+EmpresaMarisqueira "1" --> "0..*" Avaliacao : recebe
+
+Pedido "1" *-- "1..*" ItemPedido : compõe
+Produto "1" --> "0..*" ItemPedido : referenciado
+
+Produto ..> CategoriaProduto : usa
+Pedido ..> StatusPedido : usa
+EmpresaMarisqueira ..> StatusEmpresa : usa
+
+@enduml
 ```
+
+### 10.2 Imagem renderizada
+
+> **Figura 1 — Diagrama de classes UML do domínio Marisquês.**
+>
+> *Fonte: Autoria própria (2026).*
+
+### 10.3 Legenda do diagrama
+
+| Símbolo | Significado |
+|---|---|
+| `◁──` (triângulo vazado) | **Herança** — EmpresaMarisqueira e EmpresaCompradora herdam de Empresa |
+| `──▶` (seta cheia) | **Associação** unidirecional — navegável no sentido da seta |
+| `◆──` (losango cheio) | **Composição** — ItemPedido não existe sem Pedido |
+| `┈┈▶` (tracejado) | **Dependência** — uso pontual (enumerações) |
+| `{abstract}` | **Classe abstrata** — não pode ser instanciada diretamente |
+| `<<enumeration>>` | **Enumeração** — conjunto fixo de valores |
+| `-` | Atributo **privado** (encapsulado) |
+| `+` | Método **público** |
+| `"1"` — `"0..*"` | **Multiplicidade** — um para muitos |
 
 ---
 
@@ -442,5 +497,9 @@ python -m pytest tests/ -v
 3. **`aceitar_pedido()` e `rejeitar_pedido()` ficam em `EmpresaMarisqueira`** — confirmado.
 4. **Apenas 3 estados de entrega** — confirmado (`EM_PREPARO`, `EM_CURSO`, `FINALIZADO`). O aceite é um booleano, não um estado.
 5. **`solicitar_ajuste()` existe** — está na lista oficial de métodos do PDF e foi implementado.
+6. **Coleções como associações, não como atributos** — o diagrama representa `produtos`, `pedidos_recebidos`, `avaliacoes_recebidas`, `pedidos_realizados`, `avaliacoes_feitas` e `itens` como **linhas de associação/composição**, em conformidade com a notação UML de POO.
 
 ---
+| **13 — Decisões** | 5 itens | **6 itens** — incluído item sobre coleções como associações |
+
+Tudo agora é coerente: diagrama ↔ seção 3 ↔ seção 5 ↔ seção 13.
